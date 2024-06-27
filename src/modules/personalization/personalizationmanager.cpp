@@ -164,7 +164,7 @@ void PersonalizationV1::writeContext(personalization_wallpaper_context_v1 *conte
 void PersonalizationV1::saveImage(personalization_wallpaper_context_v1 *context,
                                   const QString prefix)
 {
-    if (!context || context->fd == -1 || context->output_name.isEmpty())
+    if (!context || context->fd == -1)
         return;
 
     QFile src_file;
