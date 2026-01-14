@@ -905,6 +905,9 @@ void SurfaceWrapper::setNoDecoration(bool newNoDecoration)
 
 void SurfaceWrapper::updateDecoration()
 {
+    if (m_wrapperAboutToRemove)
+        return;
+
     if (m_titleBarState == TitleBarState::Default && m_type != Type::SplashScreen)
         updateTitleBar();
 

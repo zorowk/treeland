@@ -2,6 +2,8 @@
 .cache/
 build*/
 .qtcreator/
+examples/
+waylib/examples/
 
 *.user
 
