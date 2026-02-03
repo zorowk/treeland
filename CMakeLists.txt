@@ -24,6 +24,7 @@ option(ADDRESS_SANITIZER "Enable address sanitizer" OFF)
 add_feature_info(ASanSupport ADDRESS_SANITIZER "https://github.com/google/sanitizers/wiki/AddressSanitizer")
 
 option(BUILD_TREELAND_EXAMPLES "Build clients demo to test treeland" OFF)
+option(BUILD_TESTING "Build treeland auto tests" OFF)
 add_feature_info(DemoClents BUILD_TEST_CLIENTS "clients demo for testing")
 
 option(DISABLE_DDM "Disable DDM and greeter" OFF)
@@ -71,6 +72,10 @@ set(QML_IMPORT_PATH "${LOCAL_QML_IMPORT_PATH}" CACHE STRING "For LSP" FORCE)
 find_package(PkgConfig REQUIRED)
 find_package(Qt6 CONFIG REQUIRED Core DBus Gui Qml Quick QuickControls2 LinguistTools Test QuickTest)
 
+if (NOT QT6Test_FOUND)
+    set(BUILD_TESTING OFF CACHE BOOL "Build the testing tree.")
+endif()
+
 pkg_check_modules(WLROOTS REQUIRED IMPORTED_TARGET wlroots-0.19)
 
 qt_standard_project_setup(REQUIRES 6.8)
@@ -115,8 +120,16 @@ enable_testing(true)
 add_subdirectory(src)
 add_subdirectory(tools)
 add_subdirectory(misc)
-add_subdirectory(tests)
+add_subdirectory(autotests)
 add_subdirectory(wallpaper-factory)
+
+if (BUILD_TESTING)
+    if (Qt6WaylandClient_VERSION VERSION_GREATER_EQUAL "6.8.0")
+        find_package(Qt6WaylandClientPrivate ${REQUIRED_QT_VERSION} REQUIRED NO_MODULE)
+    endif()
+
+    add_subdirectory(autotests)
+endif()
 
 if (BUILD_TREELAND_EXAMPLES)
     add_subdirectory(examples)
