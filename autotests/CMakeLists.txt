@@ -1,9 +1,3 @@
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
-set(CMAKE_AUTOMOC ON)
-
-add_subdirectory(test_protocol_personalization)
-add_subdirectory(test_protocol_primary-output)
-add_subdirectory(test_protocol_shortcut)
-add_subdirectory(test_protocol_virtual-output)
-add_subdirectory(test_protocol_wallpaper-color)
-add_subdirectory(test_protocol_window-management)
+add_definitions(-DTREELAND_UNIT_TEST)
+add_subdirectory(integration)
+add_subdirectory(protocols)
