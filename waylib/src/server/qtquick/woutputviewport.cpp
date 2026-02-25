@@ -90,6 +90,7 @@ void WOutputViewportPrivate::updateRenderBufferSource()
         sources.append(extraRenderSource);
 
     forceRender = true;
+    qWarning() << "----------------------222------------------------------" << " [" << __FUNCTION__ << ":" << __LINE__ << "]";
     bufferRenderer->setSourceList(sources, true);
 }
 

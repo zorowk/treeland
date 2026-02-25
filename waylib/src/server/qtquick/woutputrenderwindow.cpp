@@ -174,6 +174,7 @@ public:
 
     ~OutputHelper()
     {
+        qWarning() << "----------------------333------------------------------" << " [" << __FUNCTION__ << ":" << __LINE__ << "]";
         cleanLayerCompositor();
         cleanCursorRender();
         qDeleteAll(m_layers);
@@ -523,6 +524,7 @@ void OutputHelper::detachLayer(OutputLayer *layer)
 
     if (m_cursorLayerProxy && m_cursorLayerProxy->sourceItem() == l->renderer) {
         // Clear hardware cursor
+        qWarning() << "----------------------333------------------------------" << " [" << __FUNCTION__ << ":" << __LINE__ << "]";
         tryToHardwareCursor(nullptr);
         cleanCursorRender();
     }
@@ -628,6 +630,7 @@ qw_buffer *OutputHelper::renderLayer(LayerData *layer, bool *dontEndRenderAndRet
             sourceList << rectangle;
         }
 
+        qWarning() << "----------------------222------------------------------" << " [" << __FUNCTION__ << ":" << __LINE__ << "]";
         layer->renderer->setSourceList(sourceList, false);
         layer->renderer->setOutput(output()->output());
 
@@ -839,8 +842,10 @@ WBufferRenderer *OutputHelper::afterRender()
 
     if (layers.isEmpty()) {
         cleanLayerCompositor();
+        qWarning() << "----------------------333------------------------------" << " [" << __FUNCTION__ << ":" << __LINE__ << "]";
         cleanCursorRender();
         if (m_hardwareCursorRenderComplete) {
+            qWarning() << "----------------------333------------------------------" << " [" << __FUNCTION__ << ":" << __LINE__ << "]";
             tryToHardwareCursor(nullptr);
         }
         return bufferRenderer();
@@ -861,9 +866,15 @@ WBufferRenderer *OutputHelper::afterRender()
     {
         // try fallback to cursor plane for the top layer
         auto topLayer = needsCompositeLayers.last();
+        qWarning() << "xxxxxxxxxxxx" << output()->disableHardwareLayers()
+                   << topLayer->layer->forceLayer() << ok << layers.last().accepted
+                   << topLayer->layer->layer->flags() << " ["
+            << __FUNCTION__ << ":" << __LINE__ << "]";
+
         if ((!output()->disableHardwareLayers() || topLayer->layer->forceLayer())
             && !(ok && layers.last().accepted)
             && (topLayer->layer->layer->flags() & WOutputLayer::Cursor)) {
+            qWarning() << "----------------------333------------------------------" << m_cursorRenderer << " [" << __FUNCTION__ << ":" << __LINE__ << "]";
             if (tryToHardwareCursor(topLayer)) {
                 Q_ASSERT(topLayer->renderer->lastBuffer()->handle() == layers.last().buffer);
                 Q_ASSERT(!hasHardwareCursor);
@@ -919,6 +930,7 @@ WBufferRenderer *OutputHelper::afterRender()
 
     if (!hasHardwareCursor && m_cursorRenderer) {
         // Clear hardware cursor
+        qWarning() << "----------------------333------------------------------" << " [" << __FUNCTION__ << ":" << __LINE__ << "]";
         tryToHardwareCursor(nullptr);
         // Don't cleanCursorRender(), maybe will use in next frame
     }
@@ -970,6 +982,7 @@ WBufferRenderer *OutputHelper::compositeLayers(const QList<LayerData*> layers, b
             m_output2 = new WOutputViewport(m_output);
             m_output2->setObjectName(PRIVATE_WOutputViewport);
             m_output2->setOutput(m_output->output());
+            qWarning() << "----------------------222------------------------------" << " [" << __FUNCTION__ << ":" << __LINE__ << "]";
             bufferRenderer2()->setSourceList({m_layerPorxyContainer.get()}, true);
         }
 
@@ -1129,6 +1142,7 @@ bool OutputHelper::tryToHardwareCursor(const LayerData *layer)
             }
         }
 
+        qWarning() << "----------------------4444----------------------------" << needsRepaintCursor << m_cursorRenderer << " [" << __FUNCTION__ << ":" << __LINE__ << "]";
         if (needsRepaintCursor) {
             // needs render cursor again
             if (!m_cursorRenderer) {
@@ -1136,6 +1150,7 @@ bool OutputHelper::tryToHardwareCursor(const LayerData *layer)
                 if (visualizeLayers())
                     m_cursorRenderer->setClearColor(Qt::cyan);
                 m_cursorLayerProxy = new BufferRendererProxy(m_cursorRenderer);
+                qWarning() << "----------------------222------------------------------" << " [" << __FUNCTION__ << ":" << __LINE__ << "]";
                 m_cursorRenderer->setSourceList({m_cursorLayerProxy}, false);
                 m_cursorRenderer->setOutput(m_output->output());
                 m_cursorRenderer->setVisible(false);

@@ -101,6 +101,7 @@ WBufferRenderer::WBufferRenderer(QQuickItem *parent)
 WBufferRenderer::~WBufferRenderer()
 {
     cleanTextureProvider();
+    qWarning() << "----------------------111------------------------------" << " [" << __FUNCTION__ << ":" << __LINE__ << "]";
     resetSources();
 
     delete m_renderHelper;
@@ -151,6 +152,7 @@ void WBufferRenderer::setSourceList(QList<QQuickItem*> sources, bool hideSource)
     if (!changed)
         return;
 
+    qWarning() << "----------------------111------------------------------" << " [" << __FUNCTION__ << ":" << __LINE__ << "]";
     resetSources();
     m_hideSource = hideSource;
 
@@ -162,6 +164,7 @@ void WBufferRenderer::setSourceList(QList<QQuickItem*> sources, bool hideSource)
 
         connect(s, &QQuickItem::destroyed, this, [this] {
             const int index = indexOfSource(static_cast<QQuickItem*>(sender()));
+            qWarning() << "#########################################" << index << sender() <<" [" << __FUNCTION__ << ":" << __LINE__ << "]";
             Q_ASSERT(index >= 0);
             destroySource(index);
             m_sourceList.removeAt(index);
@@ -696,12 +699,14 @@ void WBufferRenderer::invalidateSceneGraph()
 {
     if (m_textureProvider)
         m_textureProvider.reset();
+    qWarning() << "----------------------111------------------------------" << " [" << __FUNCTION__ << ":" << __LINE__ << "]";
     resetSources();
 }
 
 void WBufferRenderer::releaseResources()
 {
     cleanTextureProvider();
+    qWarning() << "----------------------111------------------------------" << " [" << __FUNCTION__ << ":" << __LINE__ << "]";
     resetSources();
 }
 
@@ -733,9 +738,13 @@ void WBufferRenderer::cleanTextureProvider()
 
 void WBufferRenderer::resetSources()
 {
+    if (m_sourceList.isEmpty())
+        return;
+
     for (int i = 0; i < m_sourceList.size(); ++i) {
         destroySource(i);
     }
+    qWarning() << "#########################################" << m_sourceList.count() << " [" << __FUNCTION__ << ":" << __LINE__ << "]";
     m_sourceList.clear();
 }
 
@@ -746,6 +755,7 @@ void WBufferRenderer::destroySource(int index)
         return;
 
     // Renderer of source is delay initialized in ensureRenderer. It might be null here.
+    qWarning() << "#########################################" << s.renderer << " [" << __FUNCTION__ << ":" << __LINE__ << "]";
     if (s.renderer) {
         delete s.renderer;
         s.renderer = nullptr;
