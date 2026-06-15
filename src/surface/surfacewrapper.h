@@ -168,6 +168,7 @@ public:
     QPointF alignToPixelGrid(const QPointF &pos) const;
     QRectF alignGeometryToPixelGrid(const QRectF &geometry) const;
     qreal getOutputDevicePixelRatio(const QPointF &pos) const;
+    QRectF calculateConstrainedGeometry(const QRectF &targetGeo, bool isManualMove) const;
 
     QRectF maximizedGeometry() const;
     void setMaximizedGeometry(const QRectF &newMaximizedGeometry);

@@ -709,15 +709,6 @@ void Output::arrangeNonLayerSurface(SurfaceWrapper *surface, const QSizeF &sizeD
             newPos.setX(validGeo.x() + ratio.x() * (validGeo.width() - normalGeo.width()));
             newPos.setY(validGeo.y() + ratio.y() * (validGeo.height() - normalGeo.height()));
 
-            // Boundary protection ensures that at least 20px of the window remains within the screen.
-            const int minVisibleX = qMin(20, (int)normalGeo.width());
-            const int minVisibleY = qMin(20, (int)normalGeo.height());
-            newPos.setX(qBound(validGeo.left() - normalGeo.width() + minVisibleX,
-                            newPos.x(),
-                            validGeo.right() - minVisibleX));
-            newPos.setY(qBound(validGeo.top() - normalGeo.height() + minVisibleY,
-                            newPos.y(),
-                            validGeo.bottom() - minVisibleY));
             surface->moveNormalGeometryInOutput(newPos);
         } else {
             QPoint clientRequstPos = surface->clientRequstPos();
@@ -729,31 +720,8 @@ void Output::arrangeNonLayerSurface(SurfaceWrapper *surface, const QSizeF &sizeD
         }
     } while (false);
 
-    // After all layout adjustments, ensure the titlebar is not occluded by the valid area.
-    // This is especially important when the dock size changes (e.g. appears at the top).
-    QRectF finalGeo = surface->normalGeometry();
-    QRectF titlebarGeometry = surface->titlebarGeometry();
-    if (!titlebarGeometry.isValid()) {
-        // Fallback for CSD or windows without a titlebar: assume a 30px titlebar at the top.
-        titlebarGeometry = QRectF(0, 0, finalGeo.width(), 30);
-    }
-    titlebarGeometry.translate(finalGeo.topLeft());
-
-    QRectF screenGeo = this->geometry();
-    // Top and Bottom are strict: titlebar should stay in valid area
-    if (titlebarGeometry.top() < validGeo.top()) {
-        finalGeo.moveTop(finalGeo.top() + validGeo.top() - titlebarGeometry.top());
-    } else if (titlebarGeometry.bottom() > validGeo.bottom()) {
-        finalGeo.moveBottom(finalGeo.bottom() - (titlebarGeometry.bottom() - validGeo.bottom()));
-    }
-
-    // Left and Right are soft: allow off-screen but push out of dock if on-screen
-    if (titlebarGeometry.left() < validGeo.left() && titlebarGeometry.left() >= screenGeo.left()) {
-        finalGeo.moveLeft(finalGeo.left() + validGeo.left() - titlebarGeometry.left());
-    } else if (titlebarGeometry.right() > validGeo.right() && titlebarGeometry.right() <= screenGeo.right()) {
-        finalGeo.moveRight(finalGeo.right() - (titlebarGeometry.right() - validGeo.right()));
-    }
-
+    // After all layout adjustments, ensure the window is not occluded by the valid area.
+    QRectF finalGeo = surface->calculateConstrainedGeometry(surface->normalGeometry(), false);
     if (finalGeo != surface->normalGeometry()) {
         surface->moveNormalGeometryInOutput(finalGeo.topLeft());
     }

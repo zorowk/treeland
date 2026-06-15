@@ -414,84 +414,10 @@ void RootSurfaceContainer::ensureSurfaceNormalPositionValid(SurfaceWrapper *surf
     if (!output)
         return;
 
-    QList<QRectF> outputRects;
-    outputRects.reserve(outputs().size());
-    QRectF totalBounds;
-    for (auto o : outputs()) {
-        outputRects << o->validGeometry();
-        totalBounds = totalBounds.united(o->validGeometry());
+    auto finalGeo = surface->calculateConstrainedGeometry(normalGeo, true);
+    if (finalGeo != normalGeo) {
+        surface->moveNormalGeometryInOutput(finalGeo.topLeft());
     }
-
-    if (totalBounds.isEmpty())
-        return;
-
-    // Ensure at least 20px of the window is visible within the total output bounds
-    const qreal marginX = qMin(20.0, normalGeo.width());
-    const qreal marginY = qMin(20.0, normalGeo.height());
-
-    // Too far right, only 20px of the left edge is visible, bounce back
-    if (normalGeo.left() > totalBounds.right() - marginX) {
-        normalGeo.moveLeft(totalBounds.right() - marginX);
-    }
-    // Too far left, only 20px of the right edge is visible, bounce back
-    else if (normalGeo.right() < totalBounds.left() + marginX) {
-        normalGeo.moveRight(totalBounds.left() + marginX);
-    }
-
-    // Too far down, only 20px of the top edge is visible, bounce back
-    if (normalGeo.top() > totalBounds.bottom() - marginY) {
-        normalGeo.moveTop(totalBounds.bottom() - marginY);
-    }
-    // Too far up, only 20px of the bottom edge is visible, bounce back
-    else if (normalGeo.bottom() < totalBounds.top() + marginY) {
-        normalGeo.moveBottom(totalBounds.top() + marginY);
-    }
-
-    // Ensure titlebar is not outside the screen
-    QRectF titlebarGeo = surface->titlebarGeometry();
-    if (!titlebarGeo.isValid()) {
-        // Fallback for CSD or windows without a titlebar: assume a 30px titlebar at the top.
-        titlebarGeo = QRectF(0, 0, normalGeo.width(), 30);
-    }
-    titlebarGeo.translate(normalGeo.topLeft());
-
-    bool titlebarGeometryAdjusted = false;
-    const auto &outputList = outputs();
-    for (int i = 0; i < outputList.size(); ++i) {
-        auto *o = outputList[i];
-        QRectF r = o->validGeometry();
-        QRectF screenRect = o->geometry();
-
-        if (!screenRect.intersects(titlebarGeo))
-            continue;
-
-        // Top and Bottom are strict: titlebar should stay in valid area
-        if (titlebarGeo.top() < r.top()) {
-            normalGeo.moveTop(normalGeo.top() + r.top() - titlebarGeo.top());
-        } else if (titlebarGeo.bottom() > r.bottom()) {
-            normalGeo.moveBottom(normalGeo.bottom() - (titlebarGeo.bottom() - r.bottom()));
-        }
-
-        // Left and Right are soft: allow off-screen but push out of dock if on-screen
-        if (titlebarGeo.left() < r.left() && titlebarGeo.left() >= screenRect.left()) {
-            normalGeo.moveLeft(normalGeo.left() + r.left() - titlebarGeo.left());
-        } else if (titlebarGeo.right() > r.right() && titlebarGeo.right() <= screenRect.right()) {
-            normalGeo.moveRight(normalGeo.right() - (titlebarGeo.right() - r.right()));
-        }
-
-        titlebarGeometryAdjusted = true;
-        break;
-    }
-
-    if (!titlebarGeometryAdjusted) {
-        if (titlebarGeo.top() < totalBounds.top()) {
-            normalGeo.moveTop(normalGeo.top() + totalBounds.top() - titlebarGeo.top());
-        } else if (titlebarGeo.bottom() > totalBounds.bottom()) {
-            normalGeo.moveBottom(normalGeo.bottom() - (titlebarGeo.bottom() - totalBounds.bottom()));
-        }
-    }
-
-    surface->moveNormalGeometryInOutput(normalGeo.topLeft());
 }
 
 OutputListModel *RootSurfaceContainer::outputModel() const

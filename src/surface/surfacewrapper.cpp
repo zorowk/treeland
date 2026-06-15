@@ -9,6 +9,7 @@
 #include "seat/helper.h"
 #include "treelanduserconfig.hpp"
 #include "workspace/workspace.h"
+#include "core/rootsurfacecontainer.h"
 #include "wtoplevelsurface.h"
 
 #include <winputpopupsurfaceitem.h>
@@ -2236,6 +2237,114 @@ QRectF SurfaceWrapper::alignGeometryToPixelGrid(const QRectF &geometry) const
 
     QRectF result(alignedX, alignedY, alignedWidth, alignedHeight);
     return result;
+}
+
+namespace GeometryUtils {
+    enum class EdgeConstraint { Strict, Soft, None };
+
+    QRectF ensureVisibility(const QRectF &geo, const QRectF &safeArea, qreal marginX, qreal marginY) {
+        QRectF result = geo;
+        if (result.left() > safeArea.right() - marginX) {
+            result.moveLeft(safeArea.right() - marginX);
+        } else if (result.right() < safeArea.left() + marginX) {
+            result.moveRight(safeArea.left() + marginX);
+        }
+
+        if (result.top() > safeArea.bottom() - marginY) {
+            result.moveTop(safeArea.bottom() - marginY);
+        } else if (result.bottom() < safeArea.top() + marginY) {
+            result.moveBottom(safeArea.top() + marginY);
+        }
+        return result;
+    }
+
+    void applyEdgeConstraint(QRectF &geo, const QRectF &titlebarGeo, const QRectF &validGeo, const QRectF &screenGeo, EdgeConstraint horizontal, EdgeConstraint vertical) {
+        if (vertical == EdgeConstraint::Strict) {
+            if (titlebarGeo.top() < validGeo.top()) {
+                geo.moveTop(geo.top() + validGeo.top() - titlebarGeo.top());
+            } else if (titlebarGeo.bottom() > validGeo.bottom()) {
+                geo.moveBottom(geo.bottom() - (titlebarGeo.bottom() - validGeo.bottom()));
+            }
+        }
+        
+        if (horizontal == EdgeConstraint::Soft) {
+            if (titlebarGeo.left() < validGeo.left() && titlebarGeo.left() >= screenGeo.left()) {
+                geo.moveLeft(geo.left() + validGeo.left() - titlebarGeo.left());
+            } else if (titlebarGeo.right() > validGeo.right() && titlebarGeo.right() <= screenGeo.right()) {
+                geo.moveRight(geo.right() - (titlebarGeo.right() - validGeo.right()));
+            }
+        }
+    }
+}
+
+QRectF SurfaceWrapper::calculateConstrainedGeometry(const QRectF &targetGeo, bool isManualMove) const
+{
+    QRectF finalGeo = targetGeo;
+    auto rootContainer = Helper::instance()->rootContainer();
+    if (!rootContainer)
+        return finalGeo;
+
+    const auto &outputList = rootContainer->outputs();
+    if (outputList.isEmpty())
+        return finalGeo;
+
+    const qreal marginX = qMin(20.0, finalGeo.width());
+    const qreal marginY = qMin(20.0, finalGeo.height());
+
+    QRectF safeArea;
+    if (isManualMove) {
+        for (auto *o : outputList) {
+            safeArea = safeArea.united(o->validGeometry());
+        }
+    } else {
+        auto *output = ownsOutput();
+        if (output) {
+            safeArea = output->validGeometry();
+        } else {
+            for (auto *o : outputList) {
+                safeArea = safeArea.united(o->validGeometry());
+            }
+        }
+    }
+
+    finalGeo = GeometryUtils::ensureVisibility(finalGeo, safeArea, marginX, marginY);
+
+    QRectF titlebarGeo = titlebarGeometry();
+    if (!titlebarGeo.isValid()) {
+        titlebarGeo = QRectF(0, 0, finalGeo.width(), 30);
+    }
+    
+    QRectF currentTitlebarGeo = titlebarGeo.translated(finalGeo.topLeft());
+
+    bool titlebarGeometryAdjusted = false;
+    for (int i = 0; i < outputList.size(); ++i) {
+        auto *o = outputList[i];
+        QRectF validGeo = o->validGeometry();
+        QRectF screenGeo = o->geometry();
+
+        if (!screenGeo.intersects(currentTitlebarGeo))
+            continue;
+
+        GeometryUtils::applyEdgeConstraint(finalGeo, currentTitlebarGeo, validGeo, screenGeo, 
+                                           GeometryUtils::EdgeConstraint::Soft, 
+                                           GeometryUtils::EdgeConstraint::Strict);
+        titlebarGeometryAdjusted = true;
+        break;
+    }
+
+    if (!titlebarGeometryAdjusted && isManualMove) {
+        QRectF totalBounds;
+        for (auto *o : outputList) {
+            totalBounds = totalBounds.united(o->validGeometry());
+        }
+        if (currentTitlebarGeo.top() < totalBounds.top()) {
+            finalGeo.moveTop(finalGeo.top() + totalBounds.top() - currentTitlebarGeo.top());
+        } else if (currentTitlebarGeo.bottom() > totalBounds.bottom()) {
+            finalGeo.moveBottom(finalGeo.bottom() - (currentTitlebarGeo.bottom() - totalBounds.bottom()));
+        }
+    }
+
+    return finalGeo;
 }
 
 qreal SurfaceWrapper::getOutputDevicePixelRatio(const QPointF &pos) const
