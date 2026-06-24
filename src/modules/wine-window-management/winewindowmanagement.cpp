@@ -122,20 +122,28 @@ public:
         });
         connect(m_wrapper, &QQuickItem::xChanged, this, [this] {
             if (!m_suppressPositionEvents)
-                sendConfigurePosition();
+                sendConfigurePosition(0, "wrapperXChanged");
         });
         connect(m_wrapper, &QQuickItem::yChanged, this, [this] {
             if (!m_suppressPositionEvents)
-                sendConfigurePosition();
+                sendConfigurePosition(0, "wrapperYChanged");
+        });
+        connect(m_wrapper, &QQuickItem::widthChanged, this, [this] {
+            logWrapperGeometry("widthChanged");
+        });
+        connect(m_wrapper, &QQuickItem::heightChanged, this, [this] {
+            logWrapperGeometry("heightChanged");
         });
         connect(m_wrapper, &SurfaceWrapper::alwaysOnTopChanged, this, [this] {
+            logWrapperGeometry("alwaysOnTopChanged");
             sendConfigureStacking();
         });
 
         // Initial event sequence: window_id → configure_position → configure_stacking
         send_window_id(m_windowId);
-        sendConfigurePosition();
+        sendConfigurePosition(0, "controlCreated");
         sendConfigureStacking();
+        logWrapperGeometry("controlCreated");
     }
 
     uint32_t windowId() const
@@ -172,8 +180,18 @@ protected:
             return;
         }
 
-        qCDebug(lcTlProtocol) << "set_position serial" << x << y << serial << "for window_id"
-                                  << m_windowId;
+        qWarning() << "Wine set_position"
+                   << "file" << __FILE__ << "line" << __LINE__
+                   << "x" << x
+                   << "y" << y
+                   << "serial" << serial
+                   << "windowId" << m_windowId
+                   << "title" << m_wrapper->shellSurface()->title()
+                   << "current position" << m_wrapper->position()
+                   << "current size" << m_wrapper->size()
+                   << "normalGeometry" << m_wrapper->normalGeometry()
+                   << "state" << m_wrapper->surfaceState()
+                   << "alwaysOnTop" << m_wrapper->alwaysOnTop();
 
         m_wrapper->setPositionAutomatic(false);
         // Suppress only this class's xChanged/yChanged handlers to avoid
@@ -182,7 +200,7 @@ protected:
         m_wrapper->setPosition(QPointF(x, y));
         m_suppressPositionEvents = false;
         // Echo the client serial back in configure_position
-        sendConfigurePosition(serial);
+        sendConfigurePosition(serial, "setPositionEcho");
     }
 
     void set_z_order([[maybe_unused]] Resource *resource, uint32_t op, uint32_t sibling_id) override
@@ -228,13 +246,34 @@ protected:
 
 private:
     // serial=0 means compositor-initiated (not in response to a client set_position)
-    void sendConfigurePosition(uint32_t serial = 0)
+    void sendConfigurePosition(uint32_t serial = 0, const char *reason = "unknown")
     {
         if (m_wrapper) {
-            send_configure_position(static_cast<int32_t>(m_wrapper->x()),
-                                    static_cast<int32_t>(m_wrapper->y()),
-                                    serial);
+            const auto x = static_cast<int32_t>(m_wrapper->x());
+            const auto y = static_cast<int32_t>(m_wrapper->y());
+            qWarning() << "Wine configure_position"
+                       << "file" << __FILE__ << "line" << __LINE__
+                       << "reason" << reason
+                       << "x" << x
+                       << "y" << y
+                       << "serial" << serial
+                       << "windowId" << m_windowId
+                       << "title" << m_wrapper->shellSurface()->title()
+                       << "position" << m_wrapper->position()
+                       << "size" << m_wrapper->size()
+                       << "normalGeometry" << m_wrapper->normalGeometry()
+                       << "state" << m_wrapper->surfaceState()
+                       << "alwaysOnTop" << m_wrapper->alwaysOnTop();
+            send_configure_position(x, y, serial);
         } else {
+            qWarning() << "Wine configure_position"
+                       << "file" << __FILE__ << "line" << __LINE__
+                       << "reason" << reason
+                       << "x" << 0
+                       << "y" << 0
+                       << "serial" << serial
+                       << "windowId" << m_windowId
+                       << "wrapper" << nullptr;
             send_configure_position(0, 0, serial);
         }
     }
@@ -243,6 +282,23 @@ private:
     {
         bool topmost = m_wrapper && m_wrapper->alwaysOnTop();
         send_configure_stacking(topmost ? 1u : 0u);
+    }
+
+    void logWrapperGeometry(const char *reason) const
+    {
+        if (!m_wrapper || !m_wrapper->shellSurface())
+            return;
+
+        qWarning() << "Wine wrapper geometry"
+                   << "file" << __FILE__ << "line" << __LINE__
+                   << "reason" << reason
+                   << "windowId" << m_windowId
+                   << "title" << m_wrapper->shellSurface()->title()
+                   << "position" << m_wrapper->position()
+                   << "size" << m_wrapper->size()
+                   << "normalGeometry" << m_wrapper->normalGeometry()
+                   << "state" << m_wrapper->surfaceState()
+                   << "alwaysOnTop" << m_wrapper->alwaysOnTop();
     }
 
     // Raise to top of current stacking tier (no tier change)
@@ -349,7 +405,16 @@ void WineWindowManagerPrivate::get_window_control(Resource *resource,
                                           id);
     registerControl(windowId, xdgToplevel, control);
 
-    qCDebug(lcTlProtocol) << "Created WineWindowControl for toplevel, window_id =" << windowId;
+    qWarning() << "Created WineWindowControl for toplevel"
+               << "file" << __FILE__ << "line" << __LINE__
+               << "windowId" << windowId
+               << "wrapper" << wrapper
+               << "appId" << wrapper->appId()
+               << "title" << wrapper->shellSurface()->title()
+               << "position" << wrapper->position()
+               << "size" << wrapper->size()
+               << "state" << wrapper->surfaceState()
+               << "alwaysOnTop" << wrapper->alwaysOnTop();
 }
 
 // ---------------------------------------------------------------------------

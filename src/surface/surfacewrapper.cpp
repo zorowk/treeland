@@ -25,6 +25,7 @@
 
 #include <qwbuffer.h>
 #include <qwlayershellv1.h>
+#include <qwxwaylandsurface.h>
 
 #include <QColor>
 #include <QVariant>
@@ -393,19 +394,53 @@ void SurfaceWrapper::setup()
                 &WXWaylandSurfaceItem::implicitPositionChanged,
                 this,
                 [this, xwaylandSurfaceItem]() {
+                    const QPointF implicitPosition = xwaylandSurfaceItem->implicitPosition();
+                    auto *xwaylandSurface = qobject_cast<WXWaylandSurface *>(m_shellSurface);
+                    qWarning()
+                        << "XWayland implicit position changed"
+                        << "file" << __FILE__ << "line" << __LINE__
+                        << "windowId"
+                        << (xwaylandSurface ? xwaylandSurface->handle()->handle()->window_id : 0)
+                        << "followSurface" << m_xwaylandPositionFromSurface
+                        << "wrapperPosition" << position()
+                        << "implicitPosition" << implicitPosition
+                        << "state" << m_surfaceState.value();
                     if (m_xwaylandPositionFromSurface)
-                        moveNormalGeometryInOutput(xwaylandSurfaceItem->implicitPosition());
+                        moveNormalGeometryInOutput(implicitPosition);
                 });
 
         connect(this, &QQuickItem::xChanged, xwaylandSurface, [this, xwaylandSurfaceItem]() {
+            qWarning()
+                << "XWayland wrapper x changed"
+                << "file" << __FILE__ << "line" << __LINE__
+                << "windowId" << xwaylandSurfaceItem->xwaylandSurface()->handle()->handle()->window_id
+                << "position" << position()
+                << "configureSurface" << !m_xwaylandPositionFromSurface;
             xwaylandSurfaceItem->moveTo(position(), !m_xwaylandPositionFromSurface);
         });
 
         connect(this, &QQuickItem::yChanged, xwaylandSurface, [this, xwaylandSurfaceItem]() {
+            qWarning()
+                << "XWayland wrapper y changed"
+                << "file" << __FILE__ << "line" << __LINE__
+                << "windowId" << xwaylandSurfaceItem->xwaylandSurface()->handle()->handle()->window_id
+                << "position" << position()
+                << "configureSurface" << !m_xwaylandPositionFromSurface;
             xwaylandSurfaceItem->moveTo(position(), !m_xwaylandPositionFromSurface);
         });
 
         auto requestPos = xwaylandSurface->requestConfigureGeometry().topLeft();
+        qWarning()
+            << "Initialized XWayland wrapper"
+            << "file" << __FILE__ << "line" << __LINE__
+            << "windowId" << xwaylandSurface->handle()->handle()->window_id
+            << "appId" << appId()
+            << "title" << xwaylandSurface->title()
+            << "overrideRedirect" << xwaylandSurface->isBypassManager()
+            << "windowTypes" << xwaylandSurface->windowTypes()
+            << "requestGeometry" << xwaylandSurface->requestConfigureGeometry()
+            << "requestFlags" << xwaylandSurface->requestConfigureFlags()
+            << "surfaceGeometry" << xwaylandSurface->geometry();
         if (!requestPos.isNull()) {
             // NOTE: need a better check whether set positionAutomatic, WindowTypes?
             m_positionAutomatic = false;
@@ -766,6 +801,18 @@ QRectF SurfaceWrapper::normalGeometry() const
 void SurfaceWrapper::moveNormalGeometryInOutput(const QPointF &position)
 {
     QPointF alignedPosition = alignToPixelGrid(position);
+    if (m_type == Type::XWayland) {
+        auto *xwaylandSurface = qobject_cast<WXWaylandSurface *>(m_shellSurface);
+        qWarning()
+            << "Move XWayland normal geometry"
+            << "file" << __FILE__ << "line" << __LINE__
+            << "windowId" << (xwaylandSurface ? xwaylandSurface->handle()->handle()->window_id : 0)
+            << "from" << this->position()
+            << "requested" << position
+            << "aligned" << alignedPosition
+            << "isNormal" << isNormal()
+            << "state" << m_surfaceState.value();
+    }
     setNormalGeometry(QRectF(alignedPosition, m_normalGeometry.size()));
     if (isNormal()) {
         setPosition(alignedPosition);
@@ -2095,6 +2142,16 @@ void SurfaceWrapper::updateSurfaceSizeRatio()
 
 void SurfaceWrapper::setXwaylandPositionFromSurface(bool value)
 {
+    if (m_type == Type::XWayland && m_xwaylandPositionFromSurface != value) {
+        auto *xwaylandSurface = qobject_cast<WXWaylandSurface *>(m_shellSurface);
+        qWarning()
+            << "XWayland position follow mode changed"
+            << "file" << __FILE__ << "line" << __LINE__
+            << "windowId" << (xwaylandSurface ? xwaylandSurface->handle()->handle()->window_id : 0)
+            << "followSurface" << value
+            << "position" << position()
+            << "state" << m_surfaceState.value();
+    }
     m_xwaylandPositionFromSurface = value;
 }
 

@@ -15,7 +15,9 @@
 #include <qwcompositor.h>
 #include <qwxwaylandsurface.h>
 
+#include <QDebug>
 #include <QPointer>
+#include <QStringList>
 
 #include <unistd.h>
 
@@ -25,6 +27,32 @@
 
 QW_USE_NAMESPACE
 WAYLIB_SERVER_BEGIN_NAMESPACE
+
+static QString xwaylandWindowTypesToString(WXWaylandSurface::WindowTypes types)
+{
+    QStringList names;
+    if (types.testFlag(WXWaylandSurface::NET_WM_WINDOW_TYPE_NORMAL))
+        names << "NORMAL";
+    if (types.testFlag(WXWaylandSurface::NET_WM_WINDOW_TYPE_UTILITY))
+        names << "UTILITY";
+    if (types.testFlag(WXWaylandSurface::NET_WM_WINDOW_TYPE_TOOLTIP))
+        names << "TOOLTIP";
+    if (types.testFlag(WXWaylandSurface::NET_WM_WINDOW_TYPE_DND))
+        names << "DND";
+    if (types.testFlag(WXWaylandSurface::NET_WM_WINDOW_TYPE_DROPDOWN_MENU))
+        names << "DROPDOWN_MENU";
+    if (types.testFlag(WXWaylandSurface::NET_WM_WINDOW_TYPE_POPUP_MENU))
+        names << "POPUP_MENU";
+    if (types.testFlag(WXWaylandSurface::NET_WM_WINDOW_TYPE_COMBO))
+        names << "COMBO";
+    if (types.testFlag(WXWaylandSurface::NET_WM_WINDOW_TYPE_MENU))
+        names << "MENU";
+    if (types.testFlag(WXWaylandSurface::NET_WM_WINDOW_TYPE_NOTIFICATION))
+        names << "NOTIFICATION";
+    if (types.testFlag(WXWaylandSurface::NET_WM_WINDOW_TYPE_SPLASH))
+        names << "SPLASH";
+    return names.isEmpty() ? QStringLiteral("NONE") : names.join('|');
+}
 
 class Q_DECL_HIDDEN WXWaylandSurfacePrivate : public WToplevelSurfacePrivate
 {
@@ -103,11 +131,26 @@ void WXWaylandSurfacePrivate::init()
         Q_ASSERT(!WSurface::fromHandle(nativeHandle()->surface));
         surface = new WSurface(qw_surface::from(nativeHandle()->surface), q);
         surface->setAttachedData<WXWaylandSurface>(q);
+        qWarning()
+            << "Associated XWayland surface"
+            << "file" << __FILE__ << "line" << __LINE__
+            << "windowId" << nativeHandle()->window_id
+            << "pid" << nativeHandle()->pid
+            << "appId" << q->appId()
+            << "title" << q->title()
+            << "overrideRedirect" << nativeHandle()->override_redirect
+            << "geometry" << q->geometry()
+            << "windowTypes" << xwaylandWindowTypesToString(windowTypes);
         Q_EMIT q->surfaceChanged();
         Q_EMIT q->associated();
     });
     QObject::connect(handle(), &qw_xwayland_surface::notify_dissociate, q, [this, q] {
         Q_ASSERT(surface);
+        qWarning()
+            << "Dissociating XWayland surface"
+            << "file" << __FILE__ << "line" << __LINE__
+            << "windowId" << nativeHandle()->window_id
+            << "geometry" << q->geometry();
         Q_EMIT q->aboutToDissociate();
         surface->safeDeleteLater();
         surface = nullptr;
@@ -121,6 +164,15 @@ void WXWaylandSurfacePrivate::init()
                      q, [this, q] (wlr_xwayland_surface_configure_event *event) {
         lastRequestConfigureGeometry = QRect(event->x, event->y, event->width, event->height);
         lastRequestConfigureFlags = WXWaylandSurface::ConfigureFlags(event->mask);
+        qWarning()
+            << "XWayland request_configure"
+            << "file" << __FILE__ << "line" << __LINE__
+            << "windowId" << nativeHandle()->window_id
+            << "geometry" << lastRequestConfigureGeometry
+            << "flags" << lastRequestConfigureFlags
+            << "mapped" << (surface && surface->mapped())
+            << "overrideRedirect" << nativeHandle()->override_redirect
+            << "windowTypes" << xwaylandWindowTypesToString(windowTypes);
 
         if (!surface || !surface->mapped()) {
             q->configure(lastRequestConfigureGeometry);
@@ -129,6 +181,11 @@ void WXWaylandSurfacePrivate::init()
         }
     });
     QObject::connect(handle(), &qw_xwayland_surface::notify_request_fullscreen, q, [this, q] {
+        qWarning()
+            << "XWayland request_fullscreen"
+            << "file" << __FILE__ << "line" << __LINE__
+            << "windowId" << nativeHandle()->window_id
+            << "fullscreen" << nativeHandle()->fullscreen;
         if (nativeHandle()->fullscreen) {
             Q_EMIT q->requestFullscreen();
         } else {
@@ -152,6 +209,11 @@ void WXWaylandSurfacePrivate::init()
     });
     QObject::connect(handle(), &qw_xwayland_surface::notify_request_move,
                      q, [this, q] {
+        qWarning()
+            << "XWayland request_move"
+            << "file" << __FILE__ << "line" << __LINE__
+            << "windowId" << nativeHandle()->window_id
+            << "geometry" << q->geometry();
         Q_EMIT q->requestMove(xwayland->seat(), 0);
     });
     QObject::connect(handle(), &qw_xwayland_surface::notify_request_resize,
@@ -159,9 +221,23 @@ void WXWaylandSurfacePrivate::init()
         Q_EMIT q->requestResize(xwayland->seat(), WTools::toQtEdge(event->edges), 0);
     });
     QObject::connect(handle(), &qw_xwayland_surface::notify_set_override_redirect,
-                     q, &WXWaylandSurface::bypassManagerChanged);
+                     q, [this, q] {
+                         qWarning()
+                             << "XWayland override_redirect changed"
+                             << "file" << __FILE__ << "line" << __LINE__
+                             << "windowId" << nativeHandle()->window_id
+                             << "overrideRedirect" << nativeHandle()->override_redirect;
+                         Q_EMIT q->bypassManagerChanged();
+                     });
     QObject::connect(handle(), &qw_xwayland_surface::notify_set_geometry,
-                     q, &WXWaylandSurface::geometryChanged);
+                     q, [this, q] {
+                         qWarning()
+                             << "XWayland geometry changed"
+                             << "file" << __FILE__ << "line" << __LINE__
+                             << "windowId" << nativeHandle()->window_id
+                             << "geometry" << q->geometry();
+                         Q_EMIT q->geometryChanged();
+                     });
     QObject::connect(handle(), &qw_xwayland_surface::notify_set_hints, q, [this] {
         updateSizeHints();
     });
@@ -302,6 +378,11 @@ void WXWaylandSurfacePrivate::updateWindowTypes()
         return;
 
     windowTypes = types;
+    qWarning()
+        << "XWayland window types changed"
+        << "file" << __FILE__ << "line" << __LINE__
+        << "windowId" << nativeHandle()->window_id
+        << "windowTypes" << xwaylandWindowTypesToString(windowTypes);
     Q_EMIT q_func()->windowTypesChanged();
 }
 
