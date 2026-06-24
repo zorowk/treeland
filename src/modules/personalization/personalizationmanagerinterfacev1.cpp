@@ -1033,6 +1033,16 @@ Personalization::Personalization(WToplevelSurface *target,
             return;
         }
 
+        if (m_windowContext == context) {
+            return;
+        }
+
+        if (m_windowContext) {
+            disconnect(m_windowContext, nullptr, this, nullptr);
+        }
+
+        m_windowContext = context;
+
         connect(context,
                 &PersonalizationWindowContextV1::backgroundTypeChanged,
                 this,
@@ -1065,7 +1075,14 @@ Personalization::Personalization(WToplevelSurface *target,
                     m_states = context->states();
                     Q_EMIT windowStateChanged();
                 });
-        connect(context, &QObject::destroyed, this, &Personalization::resetProperties);
+        connect(context, &QObject::destroyed, this, [this, context] {
+            if (m_windowContext != context) {
+                return;
+            }
+
+            m_windowContext = nullptr;
+            resetProperties();
+        });
 
         m_backgroundType = context->backgroundType();
         m_cornerRadius = context->cornerRadius();

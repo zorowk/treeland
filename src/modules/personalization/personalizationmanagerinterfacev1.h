@@ -247,6 +247,7 @@ private Q_SLOTS:
 private:
     WWrapPointer<WToplevelSurface> m_target;
     PersonalizationManagerInterfaceV1 *m_manager = nullptr;
+    PersonalizationWindowContextV1 *m_windowContext = nullptr;
     int32_t m_backgroundType = Personalization::BackgroundType::Normal;
     int32_t m_cornerRadius = 0;
     Shadow m_shadow {};
