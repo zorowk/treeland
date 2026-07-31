@@ -13,11 +13,14 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QPointer>
 #include <QSaveFile>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QTimer>
+
+#include <memory>
 
 using namespace WAYLIB_SERVER_NAMESPACE;
 
@@ -107,6 +110,11 @@ QJsonObject WireScenarioResult::toJson() const
         { QStringLiteral("protocol_destructor_sent"), protocolDestructorSent },
         { QStringLiteral("local_proxy_alive_after_destroy"), localProxyAliveAfterDestroy },
         { QStringLiteral("remote_resource_count_after_destroy"), resourceCountAfterDestroy },
+        { QStringLiteral("server_stopped"), serverStopped },
+        { QStringLiteral("socket_closed"), socketClosed },
+        { QStringLiteral("environment_destroyed"), environmentDestroyed },
+        { QStringLiteral("runtime_directory_removed"), runtimeDirectoryRemoved },
+        { QStringLiteral("client_thread_stopped"), clientThreadStopped },
     };
 
     QJsonObject object{
@@ -160,9 +168,20 @@ WireScenario::WireScenario()
 
 WireScenario::~WireScenario()
 {
+    stopClientThread();
+}
+
+bool WireScenario::stopClientThread()
+{
+    if (!m_clientThread)
+        return true;
+
     m_clientThread->quit();
     m_clientThread->wait();
     delete m_clientThread;
+    m_clientThread = nullptr;
+    m_worker = nullptr;
+    return true;
 }
 
 ClientStepResult WireScenario::waitForStep(const QString &step,
@@ -246,9 +265,11 @@ WireScenarioResult WireScenario::run(quint32 expectedRequestEvent)
     elapsed.start();
 
     QTemporaryDir runtimeDirectory;
-    WServer server;
-    WSocket socket(false);
-    auto *protocol = server.attach<WindowManagementInterfaceV1>(&server);
+    auto server = std::make_unique<WServer>();
+    auto socket = std::make_unique<WSocket>(false);
+    QPointer<WServer> serverGuard(server.get());
+    QPointer<WSocket> socketGuard(socket.get());
+    auto *protocol = server->attach<WindowManagementInterfaceV1>(server.get());
 
     recordCheck(result,
                 QStringLiteral("runtime_directory_created"),
@@ -256,7 +277,7 @@ WireScenarioResult WireScenario::run(quint32 expectedRequestEvent)
                 QStringLiteral("server_crash_or_exit"),
                 QStringLiteral("Unable to create the isolated runtime directory"));
     const bool socketCreated =
-        runtimeDirectory.isValid() && socket.autoCreate(runtimeDirectory.path());
+        runtimeDirectory.isValid() && socket->autoCreate(runtimeDirectory.path());
     recordCheck(result,
                 QStringLiteral("socket_created"),
                 socketCreated,
@@ -264,11 +285,11 @@ WireScenarioResult WireScenario::run(quint32 expectedRequestEvent)
                 QStringLiteral("Unable to create the isolated Wayland socket"));
 
     if (socketCreated) {
-        server.addSocket(&socket);
-        server.start();
+        server->addSocket(socket.get());
+        server->start();
     }
 
-    result.clientCountBefore = socket.clients().size();
+    result.clientCountBefore = socket->clients().size();
     result.resourceCountBefore = protocol->resourceCount();
     recordCheck(result,
                 QStringLiteral("baseline_resources"),
@@ -282,7 +303,7 @@ WireScenarioResult WireScenario::run(quint32 expectedRequestEvent)
     if (socketCreated) {
         const ClientStepResult initial = waitForStep(
             QStringLiteral("bind"),
-            [this, path = socket.fullServerName()] {
+            [this, path = socket->fullServerName()] {
                 QMetaObject::invokeMethod(
                     m_worker,
                     [worker = m_worker, path] { worker->connectAndBind(path); },
@@ -323,7 +344,7 @@ WireScenarioResult WireScenario::run(quint32 expectedRequestEvent)
                     QStringLiteral("Initial checkpoint did not contain exactly show_desktop(Normal)"));
         recordCheck(result,
                     QStringLiteral("resource_created"),
-                    protocol->resourceCount() == 1 && socket.clients().size() == 1,
+                    protocol->resourceCount() == 1 && socket->clients().size() == 1,
                     QStringLiteral("resource_leak_or_lifecycle_error"),
                     QStringLiteral("Bound client/resource count did not reach one"));
     }
@@ -415,8 +436,8 @@ WireScenarioResult WireScenario::run(quint32 expectedRequestEvent)
                     Qt::QueuedConnection);
             });
         const bool clientsRestored = disconnected.ok
-            && waitForCondition([&socket] { return socket.clients().isEmpty(); },
-                                &socket,
+            && waitForCondition([&socket] { return socket->clients().isEmpty(); },
+                                socket.get(),
                                 SIGNAL(clientsChanged()));
         recordCheck(result,
                     QStringLiteral("client_disconnected"),
@@ -429,7 +450,7 @@ WireScenarioResult WireScenario::run(quint32 expectedRequestEvent)
                         : disconnected.errorMessage);
     }
 
-    result.clientCountAfter = socket.clients().size();
+    result.clientCountAfter = socket->clients().size();
     result.resourceCountAfter = protocol->resourceCount();
     recordCheck(result,
                 QStringLiteral("resources_restored"),
@@ -438,8 +459,46 @@ WireScenarioResult WireScenario::run(quint32 expectedRequestEvent)
                 QStringLiteral("resource_leak_or_lifecycle_error"),
                 QStringLiteral("Lifecycle counters did not return to baseline"));
 
-    if (server.isRunning())
-        server.stop();
+    if (server->isRunning())
+        server->stop();
+    result.serverStopped = !server->isRunning();
+    recordCheck(result,
+                QStringLiteral("server_stopped"),
+                result.serverStopped,
+                QStringLiteral("resource_leak_or_lifecycle_error"),
+                QStringLiteral("Wayland server did not stop"));
+
+    socket->close();
+    result.socketClosed =
+        !socket->isListening() && !socket->isValid() && socket->clients().isEmpty();
+    recordCheck(result,
+                QStringLiteral("socket_closed"),
+                result.socketClosed,
+                QStringLiteral("resource_leak_or_lifecycle_error"),
+                QStringLiteral("Wayland socket did not close completely"));
+
+    socket.reset();
+    server.reset();
+    result.environmentDestroyed = socketGuard.isNull() && serverGuard.isNull();
+    recordCheck(result,
+                QStringLiteral("environment_destroyed"),
+                result.environmentDestroyed,
+                QStringLiteral("resource_leak_or_lifecycle_error"),
+                QStringLiteral("Wayland server or socket object survived shutdown"));
+
+    result.runtimeDirectoryRemoved = runtimeDirectory.remove();
+    recordCheck(result,
+                QStringLiteral("runtime_directory_removed"),
+                result.runtimeDirectoryRemoved,
+                QStringLiteral("resource_leak_or_lifecycle_error"),
+                QStringLiteral("Temporary Wayland socket directory was not removed"));
+
+    result.clientThreadStopped = stopClientThread();
+    recordCheck(result,
+                QStringLiteral("client_thread_stopped"),
+                result.clientThreadStopped,
+                QStringLiteral("resource_leak_or_lifecycle_error"),
+                QStringLiteral("Wayland client thread did not stop"));
 
     result.elapsedMs = elapsed.elapsed();
     result.passed = result.failureCategory.isEmpty();

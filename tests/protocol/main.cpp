@@ -10,6 +10,16 @@
 namespace {
 constexpr quint32 Show = 1;
 constexpr quint32 MissingEventExpectation = 2;
+
+WireScenarioResult runScenario()
+{
+    WireScenario scenario;
+#ifdef TL_PROTOCOL_TEST_WRONG_EXPECTED
+    return scenario.run(MissingEventExpectation);
+#else
+    return scenario.run(Show);
+#endif
+}
 }
 
 int main(int argc, char **argv)
@@ -31,12 +41,7 @@ int main(int argc, char **argv)
     parser.addOption(reportDirectoryOption);
     parser.process(application);
 
-    WireScenario scenario;
-#ifdef TL_PROTOCOL_TEST_WRONG_EXPECTED
-    const WireScenarioResult result = scenario.run(MissingEventExpectation);
-#else
-    const WireScenarioResult result = scenario.run(Show);
-#endif
+    const WireScenarioResult result = runScenario();
 
     if (!writeSummary(result, parser.value(reportDirectoryOption))) {
         QTextStream(stderr) << "Unable to write summary.json\n";

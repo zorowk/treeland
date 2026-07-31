@@ -37,6 +37,11 @@ struct WireScenarioResult
     bool localProxyAliveAfterDestroy = false;
     bool protocolDestructorSent = false;
     qsizetype resourceCountAfterDestroy = 0;
+    bool serverStopped = false;
+    bool socketClosed = false;
+    bool environmentDestroyed = false;
+    bool runtimeDirectoryRemoved = false;
+    bool clientThreadStopped = false;
     int displayError = 0;
     bool protocolErrorOccurred = false;
     QString protocolErrorInterface;
@@ -67,6 +72,7 @@ private:
                      bool passed,
                      const QString &category,
                      const QString &message);
+    bool stopClientThread();
 
     QThread *m_clientThread = nullptr;
     ClientWorker *m_worker = nullptr;

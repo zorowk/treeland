@@ -7,6 +7,9 @@
 #include <QGuiApplication>
 #include <QTextStream>
 
+#include <cstdio>
+#include <cstdlib>
+
 namespace {
 constexpr quint32 Normal = 0;
 constexpr quint32 Show = 1;
@@ -19,6 +22,12 @@ HelperScenarioResult runScenario()
 #else
     return scenario.run(Show);
 #endif
+}
+
+[[noreturn]] void exitTestProcess(int exitCode)
+{
+    std::fflush(nullptr);
+    std::_Exit(exitCode);
 }
 }
 
@@ -45,8 +54,10 @@ int main(int argc, char **argv)
     const HelperScenarioResult result = runScenario();
 
     if (!writeHelperSummary(result, parser.value(reportDirectoryOption))) {
-        QTextStream(stderr) << "Unable to write summary.json\n";
-        return 2;
+        QTextStream error(stderr);
+        error << "Unable to write summary.json\n";
+        error.flush();
+        exitTestProcess(2);
     }
 
     QTextStream output(result.passed ? stdout : stderr);
@@ -61,5 +72,10 @@ int main(int argc, char **argv)
                << (result.passed ? "PASS" : "FAIL")
                << " (" << result.elapsedMs << " ms)\n";
     }
-    return result.passed ? 0 : 1;
+    output.flush();
+
+    // Helper constructs process-lifetime services such as DConfig. All objects
+    // owned by this Wayland scenario have already been destroyed and checked,
+    // so do not make this focused test depend on unrelated static teardown.
+    exitTestProcess(result.passed ? 0 : 1);
 }
