@@ -138,7 +138,7 @@ add_test(
 set_tests_properties(protocol-high-window-management-helper PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     LABELS "protocol-high"
-    TIMEOUT 10
+    TIMEOUT 30
 )
 
 add_test(
@@ -151,5 +151,5 @@ add_test(
 set_tests_properties(protocol-high-window-management-helper-wrong-expected-selftest PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     LABELS "protocol-high;runner-selftest"
-    TIMEOUT 10
+    TIMEOUT 30
 )

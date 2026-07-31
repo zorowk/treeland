@@ -105,6 +105,7 @@ HelperScenario::HelperScenario()
     , m_worker(new ClientWorker)
 {
     qRegisterMetaType<ClientStepResult>();
+    m_clientThread->setObjectName(QStringLiteral("ProtocolClient"));
     m_worker->moveToThread(m_clientThread);
     QObject::connect(m_clientThread, &QThread::finished,
                      m_worker, &QObject::deleteLater);
@@ -113,7 +114,12 @@ HelperScenario::HelperScenario()
 
 HelperScenario::~HelperScenario()
 {
-    m_clientThread->quit();
+    const bool quitScheduled = QMetaObject::invokeMethod(
+        m_worker,
+        [thread = m_clientThread] { thread->quit(); },
+        Qt::BlockingQueuedConnection);
+    if (!quitScheduled)
+        m_clientThread->quit();
     m_clientThread->wait();
     delete m_clientThread;
 }

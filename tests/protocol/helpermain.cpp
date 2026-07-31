@@ -10,6 +10,16 @@
 namespace {
 constexpr quint32 Normal = 0;
 constexpr quint32 Show = 1;
+
+HelperScenarioResult runScenario()
+{
+    HelperScenario scenario;
+#ifdef TL_PROTOCOL_TEST_WRONG_HELPER_EXPECTED
+    return scenario.run(Normal);
+#else
+    return scenario.run(Show);
+#endif
+}
 }
 
 int main(int argc, char **argv)
@@ -32,12 +42,7 @@ int main(int argc, char **argv)
     parser.addOption(reportDirectoryOption);
     parser.process(application);
 
-    HelperScenario scenario;
-#ifdef TL_PROTOCOL_TEST_WRONG_HELPER_EXPECTED
-    const HelperScenarioResult result = scenario.run(Normal);
-#else
-    const HelperScenarioResult result = scenario.run(Show);
-#endif
+    const HelperScenarioResult result = runScenario();
 
     if (!writeHelperSummary(result, parser.value(reportDirectoryOption))) {
         QTextStream(stderr) << "Unable to write summary.json\n";
