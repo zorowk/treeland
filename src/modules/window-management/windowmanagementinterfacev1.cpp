@@ -100,3 +100,8 @@ QByteArrayView WindowManagementInterfaceV1::interfaceName() const
 {
     return d->interfaceName();
 }
+
+qsizetype WindowManagementInterfaceV1::resourceCount() const
+{
+    return d->resourceMap().size();
+}

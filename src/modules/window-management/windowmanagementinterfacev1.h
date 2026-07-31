@@ -34,6 +34,7 @@ public:
     static constexpr int InterfaceVersion = 1;
     DesktopState desktopState();
     void setDesktopState(DesktopState state);
+    qsizetype resourceCount() const;
 
 Q_SIGNALS:
     void desktopStateChanged();
