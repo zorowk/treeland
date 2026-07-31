@@ -104,3 +104,52 @@ set_tests_properties(protocol-wire-window-management-wrong-expected-selftest PRO
     LABELS "protocol-wire;runner-selftest"
     TIMEOUT 10
 )
+
+set(protocol_high_common_sources
+    helpermain.cpp
+    helperscenario.cpp
+    helperscenario.h
+)
+
+foreach(target
+        test-protocol-window-management-helper
+        test-protocol-window-management-helper-wrong-expected)
+    add_executable(${target} ${protocol_high_common_sources})
+    target_link_libraries(${target}
+        PRIVATE
+            protocol-window-management-client-runtime
+            libtreeland
+            Qt6::Test
+    )
+    target_compile_definitions(${target}
+        PRIVATE
+            TL_PROTOCOL_TEST_DEFAULT_REPORT_DIR="${CMAKE_CURRENT_BINARY_DIR}/test-results/${target}"
+    )
+endforeach()
+
+target_compile_definitions(test-protocol-window-management-helper-wrong-expected
+    PRIVATE TL_PROTOCOL_TEST_WRONG_HELPER_EXPECTED
+)
+
+add_test(
+    NAME protocol-high-window-management-helper
+    COMMAND test-protocol-window-management-helper
+)
+set_tests_properties(protocol-high-window-management-helper PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    LABELS "protocol-high"
+    TIMEOUT 10
+)
+
+add_test(
+    NAME protocol-high-window-management-helper-wrong-expected-selftest
+    COMMAND ${CMAKE_COMMAND}
+        -DSELFTEST_EXECUTABLE=$<TARGET_FILE:test-protocol-window-management-helper-wrong-expected>
+        -DREPORT_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}/test-results/helper-wrong-expected-selftest
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/verify-helper-selftest.cmake
+)
+set_tests_properties(protocol-high-window-management-helper-wrong-expected-selftest PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    LABELS "protocol-high;runner-selftest"
+    TIMEOUT 10
+)
