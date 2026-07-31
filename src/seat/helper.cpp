@@ -1346,6 +1346,19 @@ void Helper::onShowDesktop()
     }
 }
 
+WindowManagementInterfaceV1 *Helper::initWindowManagement(WServer *server)
+{
+    Q_ASSERT(server);
+    Q_ASSERT(!m_windowManagementInterfaceV1);
+
+    m_windowManagementInterfaceV1 = server->attach<WindowManagementInterfaceV1>();
+    connect(m_windowManagementInterfaceV1,
+            &WindowManagementInterfaceV1::desktopStateChanged,
+            this,
+            &Helper::onShowDesktop);
+    return m_windowManagementInterfaceV1;
+}
+
 void Helper::onSetCopyOutput(VirtualOutputInterfaceV1 *interface)
 {
     const QStringList requestedOutputs = interface->outputList();
@@ -1684,7 +1697,7 @@ void Helper::init(Treeland::Treeland *treeland)
             m_sessionManager,
             &SessionManager::syncActiveSessionXWaylandPrimaryOutput);
     m_wallpaperColorV1 = m_server->attach<WallpaperColorInterfaceV1>();
-    m_windowManagementInterfaceV1 = m_server->attach<WindowManagementInterfaceV1>();
+    initWindowManagement(m_server);
     m_virtualOutputInterfaceV1 = m_server->attach<VirtualOutputManagerInterfaceV1>();
 
     auto captureManagerV1 = m_server->attach<CaptureManagerV1>();
@@ -1753,11 +1766,6 @@ void Helper::init(Treeland::Treeland *treeland)
     connect(m_userModel, &UserModel::currentUserNameChanged, this, updateCurrentUser);
 
     updateCurrentUser();
-
-    connect(m_windowManagementInterfaceV1,
-            &WindowManagementInterfaceV1::desktopStateChanged,
-            this,
-            &Helper::onShowDesktop);
 
     connect(m_virtualOutputInterfaceV1,
             &VirtualOutputManagerInterfaceV1::requestCreateVirtualOutput,

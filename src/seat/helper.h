@@ -200,6 +200,7 @@ public:
     Workspace *workspace() const;
 
     void init(Treeland::Treeland *treeland);
+    WindowManagementInterfaceV1 *initWindowManagement(WServer *server);
 
     RootSurfaceContainer *rootSurfaceContainer() const;
     Output *getOutput(WOutput *output) const;
