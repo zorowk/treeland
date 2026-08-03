@@ -3,6 +3,9 @@
 
 #include <QCoreApplication>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QXmlStreamReader>
 
 #include <utility>
@@ -66,6 +69,7 @@ private:
     };
 
     bool isServerSide();
+    bool isTestClient();
     bool parseOption(const QByteArray &str);
 
     QByteArray byteArrayValue(const QXmlStreamReader &xml, const char *name);
@@ -85,8 +89,13 @@ private:
                                     const char *interfaceName,
                                     bool deepIndent = true);
     void printEnums(const std::vector<WaylandEnum> &enums);
+    void printTestClientHeader(const std::vector<WaylandInterface> &interfaces);
+    void printTestClientCode(const std::vector<WaylandInterface> &interfaces);
+    void printTestClientMetadata(const std::vector<WaylandInterface> &interfaces);
 
     QByteArray stripInterfaceName(const QByteArray &name);
+    QByteArray testAdapterName(const QByteArray &interfaceName) const;
+    QByteArray testClientCType(const WaylandArgument &argument) const;
     bool ignoreInterface(const QByteArray &name);
 
     enum Option
@@ -95,6 +104,9 @@ private:
         ServerHeader,
         ClientCode,
         ServerCode,
+        TestClientHeader,
+        TestClientCode,
+        TestClientMetadata,
     } m_option;
 
     QByteArray m_protocolName;
@@ -151,7 +163,8 @@ bool Scanner::parseArguments(int argc, char **argv)
 void Scanner::printUsage()
 {
     fprintf(stderr,
-            "Usage: %s [client-header|server-header|client-code|server-code] specfile "
+            "Usage: %s [client-header|server-header|client-code|server-code|test-client-header|"
+            "test-client-code|test-client-metadata] specfile "
             "[--header-path=<path>] [--prefix=<prefix>] [--add-include=<include>]\n",
             m_scannerName.constData());
 }
@@ -159,6 +172,12 @@ void Scanner::printUsage()
 bool Scanner::isServerSide()
 {
     return m_option == ServerHeader || m_option == ServerCode;
+}
+
+bool Scanner::isTestClient()
+{
+    return m_option == TestClientHeader || m_option == TestClientCode
+        || m_option == TestClientMetadata;
 }
 
 bool Scanner::parseOption(const QByteArray &str)
@@ -171,6 +190,12 @@ bool Scanner::parseOption(const QByteArray &str)
         m_option = ClientCode;
     else if (str == "server-code")
         m_option = ServerCode;
+    else if (str == "test-client-header")
+        m_option = TestClientHeader;
+    else if (str == "test-client-code")
+        m_option = TestClientCode;
+    else if (str == "test-client-metadata")
+        m_option = TestClientMetadata;
     else
         return false;
 
@@ -421,7 +446,218 @@ QByteArray Scanner::stripInterfaceName(const QByteArray &name)
 
 bool Scanner::ignoreInterface(const QByteArray &name)
 {
-    return name == "wl_display" || (isServerSide() && name == "wl_registry");
+    return name == "wl_display" || ((isServerSide() || isTestClient()) && name == "wl_registry");
+}
+
+QByteArray Scanner::testAdapterName(const QByteArray &interfaceName) const
+{
+    QByteArray name = interfaceName;
+    if (name.startsWith("treeland_"))
+        name.remove(0, 9);
+    const qsizetype versionMarker = name.lastIndexOf("_v");
+    if (versionMarker >= 0) {
+        bool isVersion = true;
+        for (qsizetype i = versionMarker + 2; i < name.size(); ++i)
+            isVersion = isVersion && name.at(i) >= '0' && name.at(i) <= '9';
+        if (isVersion)
+            name.truncate(versionMarker);
+    }
+    return "tl_" + name;
+}
+
+QByteArray Scanner::testClientCType(const WaylandArgument &argument) const
+{
+    if (argument.type == "string")
+        return "const char *";
+    if (argument.type == "int" || argument.type == "fd")
+        return "int32_t";
+    if (argument.type == "uint")
+        return "uint32_t";
+    if (argument.type == "fixed")
+        return "wl_fixed_t";
+    if (argument.type == "array")
+        return "struct wl_array *";
+    if (argument.type == "object" || argument.type == "new_id") {
+        if (argument.interface.isEmpty())
+            return "struct wl_proxy *";
+        return "struct " + argument.interface + " *";
+    }
+    return argument.type;
+}
+
+void Scanner::printTestClientHeader(const std::vector<WaylandInterface> &interfaces)
+{
+    const WaylandInterface *target = nullptr;
+    for (const WaylandInterface &interface : interfaces) {
+        if (!ignoreInterface(interface.name)) {
+            target = &interface;
+            break;
+        }
+    }
+    if (!target)
+        return;
+
+    const QByteArray adapter = testAdapterName(target->name);
+    const QByteArray guard = (adapter + "_TEST_ADAPTER_H").toUpper();
+    printf("#ifndef %s\n#define %s\n\n", guard.constData(), guard.constData());
+    printf("#include <stdbool.h>\n#include <stddef.h>\n#include <stdint.h>\n\n");
+    printf("struct wl_registry;\nstruct wl_registry_listener;\nstruct %s;\n\n",
+           target->name.constData());
+    printf("#ifdef __cplusplus\nextern \"C\" {\n#endif\n\n");
+    printf("enum { TL_WINDOW_MANAGEMENT_MAX_EVENTS = 8 };\n\n");
+    printf("struct %s_adapter {\n", adapter.constData());
+    printf("    struct %s *proxy;\n", target->name.constData());
+    printf("    uint32_t global_name;\n    uint32_t advertised_version;\n");
+    printf("    uint32_t bound_version;\n");
+    printf("    uint32_t events[TL_WINDOW_MANAGEMENT_MAX_EVENTS];\n");
+    printf("    size_t event_count;\n    bool local_proxy_alive;\n");
+    printf("    bool protocol_destructor_sent;\n};\n\n");
+    printf("void %s_adapter_init(struct %s_adapter *adapter);\n", adapter.constData(), adapter.constData());
+    printf("const struct wl_registry_listener *%s_registry_listener(void);\n", adapter.constData());
+    printf("int %s_bind(struct %s_adapter *adapter, struct wl_registry *registry, "
+           "uint32_t requested_version);\n", adapter.constData(), adapter.constData());
+    printf("void %s_clear_events(struct %s_adapter *adapter);\n", adapter.constData(), adapter.constData());
+    for (const WaylandEvent &request : target->requests) {
+        printf("int %s_%s(struct %s_adapter *adapter", adapter.constData(), request.name.constData(), adapter.constData());
+        for (const WaylandArgument &argument : request.arguments) {
+            const QByteArray type = testClientCType(argument);
+            printf(", %s%s%s", type.constData(), type.endsWith('*') ? "" : " ", argument.name.constData());
+        }
+        printf(");\n");
+    }
+    printf("\n#ifdef __cplusplus\n}\n#endif\n\n#endif\n");
+}
+
+void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interfaces)
+{
+    const WaylandInterface *target = nullptr;
+    for (const WaylandInterface &interface : interfaces) {
+        if (!ignoreInterface(interface.name)) {
+            target = &interface;
+            break;
+        }
+    }
+    if (!target)
+        return;
+
+    const QByteArray adapter = testAdapterName(target->name);
+    const QByteArray basename = QByteArray(m_protocolName).replace('_', '-');
+    printf("#include \"tl-test-%s.h\"\n", basename.constData());
+    printf("#include \"wayland-%s-client-protocol.h\"\n\n", basename.constData());
+    printf("#include <string.h>\n#include <wayland-client.h>\n\n");
+
+    for (const WaylandEvent &event : target->events) {
+        printf("static void handle_%s(void *data, struct %s *proxy",
+               event.name.constData(), target->name.constData());
+        for (const WaylandArgument &argument : event.arguments) {
+            const QByteArray type = testClientCType(argument);
+            printf(", %s%s%s", type.constData(), type.endsWith('*') ? "" : " ", argument.name.constData());
+        }
+        printf(")\n{\n    struct %s_adapter *adapter = data;\n    (void)proxy;\n", adapter.constData());
+        if (event.arguments.size() == 1 && event.arguments.front().type == "uint")
+            printf("    if (adapter->event_count < TL_WINDOW_MANAGEMENT_MAX_EVENTS)\n"
+                   "        adapter->events[adapter->event_count++] = %s;\n",
+                   event.arguments.front().name.constData());
+        else {
+            for (const WaylandArgument &argument : event.arguments)
+                printf("    (void)%s;\n", argument.name.constData());
+        }
+        printf("}\n\n");
+    }
+    printf("static const struct %s_listener test_listener = {\n", target->name.constData());
+    for (const WaylandEvent &event : target->events)
+        printf("    .%s = handle_%s,\n", event.name.constData(), event.name.constData());
+    printf("};\n\n");
+    printf("static void handle_global(void *data, struct wl_registry *registry, uint32_t name, "
+           "const char *interface, uint32_t version)\n{\n");
+    printf("    struct %s_adapter *adapter = data;\n    (void)registry;\n", adapter.constData());
+    printf("    if (strcmp(interface, %s_interface.name) != 0)\n        return;\n",
+           target->name.constData());
+    printf("    adapter->global_name = name;\n    adapter->advertised_version = version;\n}\n\n");
+    printf("static void handle_global_remove(void *data, struct wl_registry *registry, uint32_t name)\n"
+           "{\n    struct %s_adapter *adapter = data;\n    (void)registry;\n"
+           "    if (adapter->global_name == name)\n        adapter->global_name = 0;\n}\n\n",
+           adapter.constData());
+    printf("static const struct wl_registry_listener registry_listener = {\n"
+           "    .global = handle_global,\n    .global_remove = handle_global_remove,\n};\n\n");
+    printf("void %s_adapter_init(struct %s_adapter *adapter)\n{\n    memset(adapter, 0, sizeof(*adapter));\n}\n\n",
+           adapter.constData(), adapter.constData());
+    printf("const struct wl_registry_listener *%s_registry_listener(void)\n{\n"
+           "    return &registry_listener;\n}\n\n", adapter.constData());
+    printf("int %s_bind(struct %s_adapter *adapter, struct wl_registry *registry, uint32_t requested_version)\n{\n",
+           adapter.constData(), adapter.constData());
+    printf("    if (!adapter->global_name || !adapter->advertised_version || adapter->proxy)\n        return -1;\n"
+           "    adapter->bound_version = requested_version < adapter->advertised_version\n"
+           "        ? requested_version : adapter->advertised_version;\n"
+           "    adapter->proxy = wl_registry_bind(registry, adapter->global_name, &%s_interface, adapter->bound_version);\n"
+           "    if (!adapter->proxy)\n        return -1;\n"
+           "#ifndef TL_TEST_ADAPTER_DISABLE_LISTENER\n"
+           "    if (%s_add_listener(adapter->proxy, &test_listener, adapter) != 0) {\n"
+           "        wl_proxy_destroy((struct wl_proxy *)adapter->proxy);\n        adapter->proxy = NULL;\n        return -1;\n    }\n"
+           "#endif\n    adapter->local_proxy_alive = true;\n    return 0;\n}\n\n",
+           target->name.constData(), target->name.constData());
+    printf("void %s_clear_events(struct %s_adapter *adapter)\n{\n    adapter->event_count = 0;\n}\n",
+           adapter.constData(), adapter.constData());
+
+    for (const WaylandEvent &request : target->requests) {
+        printf("\nint %s_%s(struct %s_adapter *adapter", adapter.constData(), request.name.constData(), adapter.constData());
+        for (const WaylandArgument &argument : request.arguments) {
+            const QByteArray type = testClientCType(argument);
+            printf(", %s%s%s", type.constData(), type.endsWith('*') ? "" : " ", argument.name.constData());
+        }
+        printf(")\n{\n    if (!adapter->proxy || !adapter->local_proxy_alive)\n        return -1;\n");
+        printf("    %s_%s(adapter->proxy", target->name.constData(), request.name.constData());
+        for (const WaylandArgument &argument : request.arguments)
+            printf(", %s", argument.name.constData());
+        printf(");\n");
+        if (request.type == "destructor")
+            printf("    adapter->proxy = NULL;\n    adapter->local_proxy_alive = false;\n"
+                   "    adapter->protocol_destructor_sent = true;\n");
+        printf("    return 0;\n}\n");
+    }
+}
+
+void Scanner::printTestClientMetadata(const std::vector<WaylandInterface> &interfaces)
+{
+    QJsonArray interfaceArray;
+    for (const WaylandInterface &interface : interfaces) {
+        if (ignoreInterface(interface.name))
+            continue;
+        auto operations = [](const std::vector<WaylandEvent> &events) {
+            QJsonArray result;
+            for (const WaylandEvent &event : events) {
+                QJsonArray arguments;
+                for (const WaylandArgument &argument : event.arguments) {
+                    arguments.append(QJsonObject{
+                        { QStringLiteral("name"), QString::fromUtf8(argument.name) },
+                        { QStringLiteral("type"), QString::fromUtf8(argument.type) },
+                        { QStringLiteral("interface"), argument.interface.isEmpty()
+                              ? QJsonValue(QJsonValue::Null)
+                              : QJsonValue(QString::fromUtf8(argument.interface)) },
+                        { QStringLiteral("allow_null"), argument.allowNull },
+                    });
+                }
+                result.append(QJsonObject{
+                    { QStringLiteral("name"), QString::fromUtf8(event.name) },
+                    { QStringLiteral("destructor"), event.type == "destructor" },
+                    { QStringLiteral("arguments"), arguments },
+                });
+            }
+            return result;
+        };
+        interfaceArray.append(QJsonObject{
+            { QStringLiteral("name"), QString::fromUtf8(interface.name) },
+            { QStringLiteral("version"), interface.version },
+            { QStringLiteral("requests"), operations(interface.requests) },
+            { QStringLiteral("events"), operations(interface.events) },
+        });
+    }
+    const QJsonObject root{
+        { QStringLiteral("protocol"), QString::fromUtf8(m_protocolName) },
+        { QStringLiteral("interfaces"), interfaceArray },
+    };
+    const QByteArray json = QJsonDocument(root).toJson(QJsonDocument::Indented);
+    fwrite(json.constData(), 1, static_cast<size_t>(json.size()), stdout);
 }
 
 bool Scanner::process()
@@ -465,11 +701,25 @@ bool Scanner::process()
     if (m_xml->hasError())
         return false;
 
+    if (m_option == TestClientMetadata) {
+        printTestClientMetadata(interfaces);
+        return true;
+    }
+
     printf("// This file was generated by qtwaylandscanner\n");
     printf("// source file is %s\n\n", qPrintable(m_protocolFilePath));
 
     for (auto b : std::as_const(m_includes))
         printf("#include %s\n", b.constData());
+
+    if (m_option == TestClientHeader) {
+        printTestClientHeader(interfaces);
+        return true;
+    }
+    if (m_option == TestClientCode) {
+        printTestClientCode(interfaces);
+        return true;
+    }
 
     if (m_option == ServerHeader) {
         QByteArray inclusionGuard =
