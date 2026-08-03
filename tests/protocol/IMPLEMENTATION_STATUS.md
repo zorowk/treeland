@@ -1,8 +1,8 @@
 # Treeland Wayland Protocol Test Implementation Status
 
 Current stage: PoC 1
-State: awaiting_human_validation
-Accepted stages: [PoC 0A, PoC 0B]
+State: accepted
+Accepted stages: [PoC 0A, PoC 0B, PoC 1]
 
 Stage commits:
 - `a5f57dc8989ccefebfc4e956c383d52ae07a9afb` feat(protocol-scanner): feat(protocol): generate C test client adapters
@@ -39,13 +39,13 @@ ctest --test-dir build-feat-testprotocol \
   --output-on-failure
 ```
 
-Human validation: pending
+Human validation: passed
 
 Known issues:
 - PoC 1 只为已接受的 window-management 单 interface 场景生成 adapter；复杂 event 参数、
   `new_id`、fd/array/fixed 和多协议对象仍属于后续阶段。
-- handwritten adapter 继续作为 golden，不得在 PoC 1 人工验收前删除。
+- handwritten adapter 继续作为后续阶段的回归 golden。
 - 完整 `Helper` 仍会创建 DConfig 等进程级常驻设施；high 测试沿用已接受的进程边界退出策略。
 - 受控沙箱不允许 Unix socket `bind()`，真实 wire 测试需要在获准的非沙箱环境运行。
 
-Next authorized action: wait for human validation of PoC 1; do not start PoC 2 or remove the handwritten golden adapter
+Next authorized action: start PoC 2 JSON data-driven implementation; preserve the handwritten and generated PoC 1 contract regression
