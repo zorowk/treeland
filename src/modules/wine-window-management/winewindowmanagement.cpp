@@ -10,11 +10,15 @@
 #include "surface/surfacewrapper.h"
 
 #include <wxdgtoplevelsurface.h>
+#include <woutput.h>
+#include <woutputlayout.h>
 
 #include <qwdisplay.h>
 #include <qwxdgshell.h>
 
 #include <QList>
+
+#include <ranges>
 
 WAYLIB_SERVER_USE_NAMESPACE
 QW_USE_NAMESPACE
@@ -174,6 +178,21 @@ protected:
 
         qCDebug(lcTlProtocol) << "set_position serial" << x << y << serial << "for window_id"
                               << m_windowId;
+
+        auto *helper = Helper::instance();
+        auto *root = helper ? helper->rootSurfaceContainer() : nullptr;
+        auto *layout = root ? root->outputLayout() : nullptr;
+        const QPoint requestedPosition(x, y);
+        const bool positionIsOnActiveOutput = layout
+            && std::ranges::any_of(layout->outputs(), [requestedPosition](WOutput *output) {
+                   return output && output->isEnabled()
+                       && QRect(output->position(), output->effectiveSize())
+                              .contains(requestedPosition);
+               });
+        if (!positionIsOnActiveOutput) {
+            sendConfigurePosition(serial);
+            return;
+        }
 
         m_wrapper->setPositionAutomatic(false);
         // Suppress only this class's xChanged/yChanged handlers to avoid
