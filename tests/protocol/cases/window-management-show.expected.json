@@ -6,7 +6,7 @@
     "based_on": ["xml-description", "accepted-poc-1-contract"],
     "xml_sha256": "7eec2fd16374b61f12c6ac7672f635d72405376026dff88a63759bed92cffd2a",
     "server_commit": "984c1c721",
-    "review_status": "candidate"
+    "review_status": "human-reviewed"
   },
   "checkpoints": {
     "initial-state": {

@@ -1,8 +1,8 @@
 # Treeland Wayland Protocol Test Implementation Status
 
 Current stage: PoC 2
-State: awaiting_human_validation
-Accepted stages: [PoC 0A, PoC 0B, PoC 1]
+State: accepted
+Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2]
 
 Stage commits:
 - `40354f12fd755bdcc7102e5009a32be0dc74ed76` feat(protocol): add JSON-driven wire test runner
@@ -51,14 +51,13 @@ ctest --test-dir build-feat-testprotocol \
   --output-on-failure
 ```
 
-Human validation: pending
+Human validation: passed
 
 Known issues:
 - PoC 2 只将已接受的 window-management 单 interface 场景迁移到 JSON；不增加新协议能力。
 - handwritten 与 generated adapter 场景必须继续作为回归 golden。
-- 当前 expected 的 `review_status` 保持 `candidate`，等待本阶段人工验收；runner 会明确警告，
-  但 schema 允许本地运行 candidate。
+- 当前 expected 已随本阶段人工验收更新为 `human-reviewed`。
 - 仍不支持 `new_id`、跨协议对象、xdg/shm fixture、多客户端及 fd/array/fixed；这些不属于 PoC 2。
 - 受控沙箱不允许 Unix socket `bind()`，真实 wire 测试需要在获准的非沙箱环境运行。
 
-Next authorized action: wait for explicit human validation of PoC 2; do not start PoC 3
+Next authorized action: start PoC 3 window behavior implementation; preserve all PoC 0A through PoC 2 regressions
