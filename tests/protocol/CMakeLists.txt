@@ -335,6 +335,43 @@ add_protocol_json_selftest(
     schema_error
 )
 
+add_executable(protocol-json-contract-diff
+    protocoljsoncontractdiff.cpp
+)
+target_link_libraries(protocol-json-contract-diff PRIVATE Qt6::Core)
+
+add_test(
+    NAME protocol-window-management-json-contract
+    COMMAND ${CMAKE_COMMAND}
+        -DWIRE_EXECUTABLE=$<TARGET_FILE:test-protocol-window-management-wire-generated>
+        -DJSON_EXECUTABLE=$<TARGET_FILE:treeland-protocol-test-runner>
+        -DCONTRACT_DIFF=$<TARGET_FILE:protocol-json-contract-diff>
+        -DINPUT=${protocol_json_good_input}
+        -DEXPECTED=${protocol_json_good_expected}
+        -DREPORT_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}/test-results/json-contract
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/verify-json-contract.cmake
+)
+set_tests_properties(protocol-window-management-json-contract PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    LABELS "protocol-wire;generated-adapter;json-runner;contract-diff"
+    TIMEOUT 20
+)
+
+add_test(
+    NAME protocol-window-management-json-repeatable
+    COMMAND ${CMAKE_COMMAND}
+        -DJSON_EXECUTABLE=$<TARGET_FILE:treeland-protocol-test-runner>
+        -DINPUT=${protocol_json_good_input}
+        -DEXPECTED=${protocol_json_good_expected}
+        -DREPORT_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}/test-results/json-repeatable
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/verify-json-repeatable.cmake
+)
+set_tests_properties(protocol-window-management-json-repeatable PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    LABELS "protocol-wire;json-runner;contract-diff"
+    TIMEOUT 20
+)
+
 set(protocol_high_common_sources
     helpermain.cpp
     helperscenario.cpp
