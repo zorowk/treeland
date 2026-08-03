@@ -172,6 +172,27 @@ add_protocol_wire_test(
     protocol-window-management-generated-missing-listener-client-runtime
 )
 
+add_executable(treeland-protocol-test-runner
+    protocoljsoncase.cpp
+    protocoljsoncase.h
+    protocoljsonmain.cpp
+    protocoljsonscenario.cpp
+    protocoljsonscenario.h
+    ${CMAKE_BINARY_DIR}/src/modules/window-management/qwayland-server-treeland-window-management-v1.cpp
+)
+target_link_libraries(treeland-protocol-test-runner
+    PRIVATE
+        protocol-window-management-generated-client-runtime
+        module_windowmanagement
+        Qt6::Test
+)
+target_compile_definitions(treeland-protocol-test-runner
+    PRIVATE
+        TL_PROTOCOL_TEST_METADATA="${test_adapter_metadata}"
+        TL_PROTOCOL_TEST_XML="${window_management_xml}"
+        TL_PROTOCOL_TEST_DEFAULT_REPORT_DIR="${CMAKE_CURRENT_BINARY_DIR}/test-results/json-runner"
+)
+
 target_compile_definitions(test-protocol-window-management-wire-wrong-expected
     PRIVATE TL_PROTOCOL_TEST_WRONG_EXPECTED
 )
@@ -220,6 +241,98 @@ set_tests_properties(protocol-wire-window-management-wrong-expected-selftest PRO
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     LABELS "protocol-wire;runner-selftest"
     TIMEOUT 10
+)
+
+set(protocol_json_case_directory ${CMAKE_CURRENT_SOURCE_DIR}/cases)
+set(protocol_json_good_input
+    ${protocol_json_case_directory}/window-management-show.input.json
+)
+set(protocol_json_good_expected
+    ${protocol_json_case_directory}/window-management-show.expected.json
+)
+
+add_test(
+    NAME protocol-wire-window-management-json
+    COMMAND treeland-protocol-test-runner
+        --input ${protocol_json_good_input}
+        --expected ${protocol_json_good_expected}
+        --dump-actual ${CMAKE_CURRENT_BINARY_DIR}/test-results/json-runner/actual.json
+        --report-dir ${CMAKE_CURRENT_BINARY_DIR}/test-results/json-runner
+)
+set_tests_properties(protocol-wire-window-management-json PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    LABELS "protocol-wire;json-runner"
+    TIMEOUT 10
+)
+
+function(add_protocol_json_selftest name input expected category)
+    add_test(
+        NAME protocol-json-runner-${name}-selftest
+        COMMAND ${CMAKE_COMMAND}
+            -DSELFTEST_EXECUTABLE=$<TARGET_FILE:treeland-protocol-test-runner>
+            -DINPUT=${input}
+            -DEXPECTED=${expected}
+            -DREPORT_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}/test-results/json-${name}-selftest
+            -DEXPECTED_CATEGORY=${category}
+            ${ARGN}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/verify-json-runner-selftest.cmake
+    )
+    set_tests_properties(protocol-json-runner-${name}-selftest PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "protocol-wire;json-runner;runner-selftest"
+        TIMEOUT 10
+    )
+endfunction()
+
+add_protocol_json_selftest(
+    invalid-schema
+    ${protocol_json_case_directory}/selftest-invalid-schema.input.json
+    ${protocol_json_good_expected}
+    schema_error
+)
+add_protocol_json_selftest(
+    unknown-request
+    ${protocol_json_case_directory}/selftest-unknown-request.input.json
+    ${protocol_json_good_expected}
+    metadata_validation_error
+)
+add_protocol_json_selftest(
+    wrong-argument-type
+    ${protocol_json_case_directory}/selftest-wrong-argument-type.input.json
+    ${protocol_json_good_expected}
+    adapter_validation_error
+)
+add_protocol_json_selftest(
+    metadata-mismatch
+    ${protocol_json_case_directory}/selftest-metadata-mismatch.input.json
+    ${protocol_json_good_expected}
+    metadata_validation_error
+)
+add_protocol_json_selftest(
+    wrong-expected-event
+    ${protocol_json_good_input}
+    ${protocol_json_case_directory}/selftest-wrong-event.expected.json
+    checkpoint_event_diff
+    -DEXPECTED_CHECKPOINT=request-state
+)
+add_protocol_json_selftest(
+    wrong-server-state
+    ${protocol_json_good_input}
+    ${protocol_json_case_directory}/selftest-wrong-server-state.expected.json
+    checkpoint_probe_diff
+    -DEXPECTED_CHECKPOINT=request-state
+)
+add_protocol_json_selftest(
+    case-id-mismatch
+    ${protocol_json_good_input}
+    ${protocol_json_case_directory}/selftest-case-id-mismatch.expected.json
+    schema_error
+)
+add_protocol_json_selftest(
+    malformed-expected
+    ${protocol_json_good_input}
+    ${protocol_json_case_directory}/selftest-malformed.expected.json
+    schema_error
 )
 
 set(protocol_high_common_sources

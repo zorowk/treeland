@@ -41,8 +41,12 @@ public:
 
 public Q_SLOTS:
     void connectAndBind(const QString &socketPath);
+    void connectAndBindVersion(const QString &socketPath, quint32 requestedVersion);
     void setDesktop(quint32 state);
+    void sendSetDesktop(quint32 state);
+    void clientRoundtrip();
     void destroyProtocol();
+    void sendDestroyProtocol();
     void disconnectClient();
 
 Q_SIGNALS:

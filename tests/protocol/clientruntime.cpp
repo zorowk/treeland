@@ -74,6 +74,11 @@ bool ClientWorker::roundtrip(ClientStepResult &snapshot)
 
 void ClientWorker::connectAndBind(const QString &socketPath)
 {
+    connectAndBindVersion(socketPath, 1);
+}
+
+void ClientWorker::connectAndBindVersion(const QString &socketPath, quint32 requestedVersion)
+{
     ClientStepResult snapshot;
     snapshot.step = QStringLiteral("bind");
 
@@ -103,7 +108,7 @@ void ClientWorker::connectAndBind(const QString &socketPath)
         return;
     }
 
-    if (tl_window_management_bind(m_adapter, m_registry, 1) != 0) {
+    if (tl_window_management_bind(m_adapter, m_registry, requestedVersion) != 0) {
         Q_EMIT stepFinished(result(snapshot.step,
                                    false,
                                    QStringLiteral("adapter_validation_error"),
@@ -119,6 +124,31 @@ void ClientWorker::connectAndBind(const QString &socketPath)
     snapshot = result(snapshot.step, true);
     tl_window_management_clear_events(m_adapter);
     Q_EMIT stepFinished(snapshot);
+}
+
+void ClientWorker::sendSetDesktop(quint32 state)
+{
+    constexpr auto step = "request:set_desktop";
+    tl_window_management_clear_events(m_adapter);
+    if (tl_window_management_set_desktop(m_adapter, state) != 0) {
+        Q_EMIT stepFinished(result(QString::fromLatin1(step),
+                                   false,
+                                   QStringLiteral("adapter_validation_error"),
+                                   QStringLiteral("set_desktop target is not alive")));
+        return;
+    }
+    Q_EMIT stepFinished(result(QString::fromLatin1(step), true));
+}
+
+void ClientWorker::clientRoundtrip()
+{
+    ClientStepResult snapshot;
+    snapshot.step = QStringLiteral("client_roundtrip");
+    if (!roundtrip(snapshot)) {
+        Q_EMIT stepFinished(snapshot);
+        return;
+    }
+    Q_EMIT stepFinished(result(snapshot.step, true));
 }
 
 void ClientWorker::setDesktop(quint32 state)
@@ -163,6 +193,20 @@ void ClientWorker::destroyProtocol()
     }
 
     Q_EMIT stepFinished(result(snapshot.step, true));
+}
+
+void ClientWorker::sendDestroyProtocol()
+{
+    constexpr auto step = "request:destroy";
+    tl_window_management_clear_events(m_adapter);
+    if (tl_window_management_destroy(m_adapter) != 0) {
+        Q_EMIT stepFinished(result(QString::fromLatin1(step),
+                                   false,
+                                   QStringLiteral("adapter_validation_error"),
+                                   QStringLiteral("Protocol destructor target is not alive")));
+        return;
+    }
+    Q_EMIT stepFinished(result(QString::fromLatin1(step), true));
 }
 
 void ClientWorker::disconnectClient()

@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "case": "window-management.set-desktop-show",
+  "expectation_source": {
+    "generated_by": "PoC 2 migration from accepted hardcoded golden",
+    "based_on": ["xml-description", "accepted-poc-1-contract"],
+    "xml_sha256": "7eec2fd16374b61f12c6ac7672f635d72405376026dff88a63759bed92cffd2a",
+    "server_commit": "984c1c721",
+    "review_status": "candidate"
+  },
+  "checkpoints": {
+    "initial-state": {
+      "client_events": [
+        {
+          "object": "window_management",
+          "event": "show_desktop",
+          "args": [0]
+        }
+      ],
+      "server_state": {
+        "desktop_state": 0,
+        "desktop_state_changed_count": 0
+      }
+    },
+    "request-state": {
+      "client_events": [
+        {
+          "object": "window_management",
+          "event": "show_desktop",
+          "args": [1]
+        }
+      ],
+      "server_state": {
+        "desktop_state": 1,
+        "desktop_state_changed_count": 1
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "case": "window-management.set-desktop-show",
+  "protocol": { "interface": "treeland_window_management_v1", "version": 2 },
+  "steps": [
+    { "bind": { "object": "window_management", "interface": "treeland_window_management_v1", "version": 2 } },
+    { "checkpoint": "initial-state" },
+    { "disconnect": {} }
+  ]
+}
