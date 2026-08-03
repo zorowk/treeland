@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "case": "wine-window-management.set-position",
+  "expectation_source": {
+    "generated_by": "codex",
+    "generator": "gpt-5",
+    "based_on": ["self-test"],
+    "xml_sha256": "a411c9f8bae3b669b3dd9e378436a70e067fb19ea810ef3c96e9b739aeede095",
+    "server_commit": "c79617591cffb6bd52904fa63fcd45e2c1b79d0d",
+    "review_status": "candidate"
+  },
+  "checkpoints": {
+    "position-applied": {
+      "connection": { "display_error": 0, "protocol_error_occurred": false },
+      "client_events": [
+        { "object": "control", "event": "configure_position", "args": [100, 120, 7] }
+      ],
+      "server_state": { "surface.geometry": [101, 120, 300, 200] }
+    }
+  }
+}

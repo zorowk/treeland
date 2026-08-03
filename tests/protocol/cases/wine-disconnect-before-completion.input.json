@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "case": "wine-window-management.disconnect-before-completion",
+  "protocol": { "interface": "treeland_wine_window_manager_v1", "version": 1 },
+  "server": {
+    "outputs": [
+      { "name": "HEADLESS-1", "geometry": [0, 0, 1280, 720], "scale": 1 }
+    ],
+    "disable_animations": true
+  },
+  "client": {
+    "objects": [
+      {
+        "name": "window",
+        "fixture": "xdg_toplevel",
+        "app_id": "test.wine.position.disconnect",
+        "size": [300, 200],
+        "mapped": true
+      },
+      {
+        "name": "control",
+        "interface": "treeland_wine_window_control_v1",
+        "for": "$window"
+      }
+    ]
+  },
+  "steps": [
+    { "capture": { "name": "position_serial", "value": 13 } },
+    {
+      "request": {
+        "object": "control",
+        "name": "set_position",
+        "args": [200, 220, "$position_serial"],
+        "disconnect_before_completion": true
+      }
+    },
+    { "disconnect": {} }
+  ]
+}

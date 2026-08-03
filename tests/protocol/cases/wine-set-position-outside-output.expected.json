@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "case": "wine-window-management.set-position-outside-output",
+  "expectation_source": {
+    "generated_by": "codex",
+    "generator": "gpt-5",
+    "based_on": ["xml-description", "server-contract", "fixture-output-geometry"],
+    "xml_sha256": "a411c9f8bae3b669b3dd9e378436a70e067fb19ea810ef3c96e9b739aeede095",
+    "server_commit": "c79617591cffb6bd52904fa63fcd45e2c1b79d0d",
+    "review_status": "candidate"
+  },
+  "checkpoints": {
+    "origin-applied": {
+      "connection": { "display_error": 0, "protocol_error_occurred": false },
+      "client_events": [
+        { "object": "control", "event": "configure_position", "args": [0, 0, 8] }
+      ],
+      "server_state": { "surface.geometry": [0, 0, 300, 200] }
+    },
+    "negative-rejected": {
+      "connection": { "display_error": 0, "protocol_error_occurred": false },
+      "client_events": [
+        { "object": "control", "event": "configure_position", "args": [0, 0, 9] }
+      ],
+      "server_state": { "surface.geometry": [0, 0, 300, 200] }
+    },
+    "outside-rejected": {
+      "connection": { "display_error": 0, "protocol_error_occurred": false },
+      "client_events": [
+        { "object": "control", "event": "configure_position", "args": [0, 0, 10] }
+      ],
+      "server_state": { "surface.geometry": [0, 0, 300, 200] }
+    },
+    "right-boundary-rejected": {
+      "connection": { "display_error": 0, "protocol_error_occurred": false },
+      "client_events": [
+        { "object": "control", "event": "configure_position", "args": [0, 0, 11] }
+      ],
+      "server_state": { "surface.geometry": [0, 0, 300, 200] }
+    },
+    "bottom-boundary-rejected": {
+      "connection": { "display_error": 0, "protocol_error_occurred": false },
+      "client_events": [
+        { "object": "control", "event": "configure_position", "args": [0, 0, 12] }
+      ],
+      "server_state": { "surface.geometry": [0, 0, 300, 200] }
+    }
+  }
+}

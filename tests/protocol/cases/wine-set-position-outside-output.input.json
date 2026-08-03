@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "case": "wine-window-management.set-position-outside-output",
+  "protocol": {
+    "interface": "treeland_wine_window_manager_v1",
+    "version": 1
+  },
+  "server": {
+    "outputs": [
+      { "name": "HEADLESS-1", "geometry": [0, 0, 1280, 720], "scale": 1 }
+    ],
+    "disable_animations": true
+  },
+  "client": {
+    "objects": [
+      {
+        "name": "window",
+        "fixture": "xdg_toplevel",
+        "app_id": "test.wine.position.boundary",
+        "size": [300, 200],
+        "mapped": true
+      },
+      {
+        "name": "control",
+        "interface": "treeland_wine_window_control_v1",
+        "for": "$window"
+      }
+    ]
+  },
+  "steps": [
+    { "capture": { "name": "origin_serial", "value": 8 } },
+    {
+      "request": {
+        "object": "control",
+        "name": "set_position",
+        "args": [0, 0, "$origin_serial"]
+      }
+    },
+    { "barrier": { "type": "client_roundtrip" } },
+    {
+      "barrier": {
+        "type": "server_condition",
+        "probe": "surface.geometry",
+        "selector": { "app_id": "test.wine.position.boundary" },
+        "equals": [0, 0, 300, 200],
+        "timeout_ms": 1000
+      }
+    },
+    { "checkpoint": "origin-applied" },
+    { "capture": { "name": "negative_serial", "value": 9 } },
+    {
+      "request": {
+        "object": "control",
+        "name": "set_position",
+        "args": [-1, 0, "$negative_serial"]
+      }
+    },
+    {
+      "barrier": {
+        "type": "server_condition",
+        "probe": "surface.geometry",
+        "selector": { "app_id": "test.wine.position.boundary" },
+        "equals": [0, 0, 300, 200],
+        "timeout_ms": 1000
+      }
+    },
+    { "checkpoint": "negative-rejected" },
+    { "capture": { "name": "outside_serial", "value": 10 } },
+    {
+      "request": {
+        "object": "control",
+        "name": "set_position",
+        "args": [1400, 800, "$outside_serial"]
+      }
+    },
+    {
+      "barrier": {
+        "type": "server_condition",
+        "probe": "surface.geometry",
+        "selector": { "app_id": "test.wine.position.boundary" },
+        "equals": [0, 0, 300, 200],
+        "timeout_ms": 1000
+      }
+    },
+    { "checkpoint": "outside-rejected" },
+    { "capture": { "name": "right_serial", "value": 11 } },
+    {
+      "request": {
+        "object": "control",
+        "name": "set_position",
+        "args": [1280, 100, "$right_serial"]
+      }
+    },
+    {
+      "barrier": {
+        "type": "server_condition",
+        "probe": "surface.geometry",
+        "selector": { "app_id": "test.wine.position.boundary" },
+        "equals": [0, 0, 300, 200],
+        "timeout_ms": 1000
+      }
+    },
+    { "checkpoint": "right-boundary-rejected" },
+    { "capture": { "name": "bottom_serial", "value": 12 } },
+    {
+      "request": {
+        "object": "control",
+        "name": "set_position",
+        "args": [100, 720, "$bottom_serial"]
+      }
+    },
+    {
+      "barrier": {
+        "type": "server_condition",
+        "probe": "surface.geometry",
+        "selector": { "app_id": "test.wine.position.boundary" },
+        "equals": [0, 0, 300, 200],
+        "timeout_ms": 1000
+      }
+    },
+    { "checkpoint": "bottom-boundary-rejected" },
+    { "destroy": { "objects": ["control", "manager"] } },
+    { "disconnect": {} }
+  ]
+}

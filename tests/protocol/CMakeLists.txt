@@ -25,6 +25,67 @@ set(test_adapter_metadata
     ${generated_directory}/tl-test-treeland-window-management-v1-metadata.json
 )
 
+set(wine_window_management_xml
+    ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-wine-window-management-unstable-v1.xml
+)
+set(xdg_shell_xml
+    ${WAYLAND_PROTOCOLS_DATADIR}/stable/xdg-shell/xdg-shell.xml
+)
+if(NOT WAYLAND_PROTOCOLS_DATADIR)
+    pkg_get_variable(WAYLAND_PROTOCOLS_DATADIR wayland-protocols pkgdatadir)
+    set(xdg_shell_xml ${WAYLAND_PROTOCOLS_DATADIR}/stable/xdg-shell/xdg-shell.xml)
+endif()
+set(wine_generated_directory
+    ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-wine-window-management-v1
+)
+set(wine_client_header
+    ${wine_generated_directory}/wayland-treeland-wine-window-management-v1-client-protocol.h
+)
+set(wine_client_code
+    ${wine_generated_directory}/wayland-treeland-wine-window-management-v1-client-protocol.c
+)
+set(xdg_client_header ${wine_generated_directory}/xdg-shell-client-protocol.h)
+set(xdg_client_code ${wine_generated_directory}/xdg-shell-protocol.c)
+set(wine_test_adapter_metadata
+    ${wine_generated_directory}/tl-test-treeland-wine-window-management-v1-metadata.json
+)
+
+add_custom_command(
+    OUTPUT
+        ${wine_client_header}
+        ${wine_client_code}
+        ${xdg_client_header}
+        ${xdg_client_code}
+        ${wine_test_adapter_metadata}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${wine_generated_directory}
+    COMMAND ${WAYLAND_SCANNER} client-header ${wine_window_management_xml} ${wine_client_header}
+    COMMAND ${WAYLAND_SCANNER} private-code ${wine_window_management_xml} ${wine_client_code}
+    COMMAND ${WAYLAND_SCANNER} client-header ${xdg_shell_xml} ${xdg_client_header}
+    COMMAND ${WAYLAND_SCANNER} private-code ${xdg_shell_xml} ${xdg_client_code}
+    COMMAND qtwaylandscanner_treeland test-client-metadata ${wine_window_management_xml}
+        > ${wine_test_adapter_metadata}
+    DEPENDS
+        ${wine_window_management_xml}
+        ${xdg_shell_xml}
+        qtwaylandscanner_treeland
+    VERBATIM
+)
+
+add_library(protocol-wine-window-management-client-runtime STATIC
+    wineclientworker.cpp
+    wineclientworker.h
+    ${wine_client_header}
+    ${wine_client_code}
+    ${xdg_client_header}
+    ${xdg_client_code}
+)
+target_include_directories(protocol-wine-window-management-client-runtime
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${wine_generated_directory}
+)
+target_link_libraries(protocol-wine-window-management-client-runtime
+    PUBLIC Qt6::Core PkgConfig::WAYLAND_CLIENT
+)
+
 add_custom_command(
     OUTPUT
         ${client_header}
@@ -178,18 +239,23 @@ add_executable(treeland-protocol-test-runner
     protocoljsonmain.cpp
     protocoljsonscenario.cpp
     protocoljsonscenario.h
+    wineprotocoljsonscenario.cpp
+    wineprotocoljsonscenario.h
     ${CMAKE_BINARY_DIR}/src/modules/window-management/qwayland-server-treeland-window-management-v1.cpp
 )
 target_link_libraries(treeland-protocol-test-runner
     PRIVATE
         protocol-window-management-generated-client-runtime
-        module_windowmanagement
+        protocol-wine-window-management-client-runtime
+        libtreeland
         Qt6::Test
 )
 target_compile_definitions(treeland-protocol-test-runner
     PRIVATE
         TL_PROTOCOL_TEST_METADATA="${test_adapter_metadata}"
         TL_PROTOCOL_TEST_XML="${window_management_xml}"
+        TL_WINE_PROTOCOL_TEST_METADATA="${wine_test_adapter_metadata}"
+        TL_WINE_PROTOCOL_TEST_XML="${wine_window_management_xml}"
         TL_PROTOCOL_TEST_DEFAULT_REPORT_DIR="${CMAKE_CURRENT_BINARY_DIR}/test-results/json-runner"
 )
 
@@ -249,6 +315,38 @@ set(protocol_json_good_input
 )
 set(protocol_json_good_expected
     ${protocol_json_case_directory}/window-management-show.expected.json
+)
+
+function(add_wine_position_case name input expected)
+    add_test(
+        NAME protocol-wine-window-management-${name}
+        COMMAND treeland-protocol-test-runner
+            --input ${protocol_json_case_directory}/${input}
+            --expected ${protocol_json_case_directory}/${expected}
+            --dump-actual
+                ${CMAKE_CURRENT_BINARY_DIR}/test-results/poc-3/${name}.actual.json
+            --report-dir ${CMAKE_CURRENT_BINARY_DIR}/test-results/poc-3/${name}
+    )
+    set_tests_properties(protocol-wine-window-management-${name} PROPERTIES
+        LABELS "protocol-high;json-runner;poc-3-candidate"
+        TIMEOUT 30
+    )
+endfunction()
+
+add_wine_position_case(
+    set-position
+    wine-set-position.input.json
+    wine-set-position.expected.json
+)
+add_wine_position_case(
+    set-position-outside-output
+    wine-set-position-outside-output.input.json
+    wine-set-position-outside-output.expected.json
+)
+add_wine_position_case(
+    disconnect-before-completion
+    wine-disconnect-before-completion.input.json
+    wine-disconnect-before-completion.expected.json
 )
 
 add_test(
@@ -333,6 +431,13 @@ add_protocol_json_selftest(
     ${protocol_json_good_input}
     ${protocol_json_case_directory}/selftest-malformed.expected.json
     schema_error
+)
+add_protocol_json_selftest(
+    wine-wrong-position
+    ${protocol_json_case_directory}/wine-set-position.input.json
+    ${protocol_json_case_directory}/selftest-wine-wrong-position.expected.json
+    checkpoint_probe_diff
+    -DEXPECTED_CHECKPOINT=position-applied
 )
 
 add_executable(protocol-json-contract-diff

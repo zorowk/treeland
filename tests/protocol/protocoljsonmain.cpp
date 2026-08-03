@@ -9,8 +9,26 @@
 #include <QGuiApplication>
 #include <QTextStream>
 
+#include <wserver.h>
+
+using namespace WAYLIB_SERVER_NAMESPACE;
+
 int main(int argc, char **argv)
 {
+    QString earlyInputPath;
+    for (int index = 1; index + 1 < argc; ++index) {
+        if (QString::fromLocal8Bit(argv[index]) == QStringLiteral("--input")) {
+            earlyInputPath = QString::fromLocal8Bit(argv[index + 1]);
+            break;
+        }
+    }
+    if (protocolJsonInputInterface(earlyInputPath)
+        == QStringLiteral("treeland_wine_window_manager_v1")) {
+        qputenv("WLR_BACKENDS", "headless");
+        qputenv("WLR_HEADLESS_OUTPUTS", "1");
+        qputenv("QT_QUICK_BACKEND", "software");
+        WServer::initializeQPA();
+    }
     QGuiApplication application(argc, argv);
     QCoreApplication::setApplicationName(QStringLiteral("treeland-protocol-test-runner"));
 
@@ -55,13 +73,22 @@ int main(int argc, char **argv)
         ? parser.value(actualOption)
         : QDir(reportDirectory).filePath(QStringLiteral("actual.json"));
 
+    const bool wineCase = protocolJsonInputInterface(parser.value(inputOption))
+        == QStringLiteral("treeland_wine_window_manager_v1");
+    const QString metadataPath = wineCase && !parser.isSet(metadataOption)
+        ? QStringLiteral(TL_WINE_PROTOCOL_TEST_METADATA)
+        : parser.value(metadataOption);
+    const QString xmlPath = wineCase && !parser.isSet(xmlOption)
+        ? QStringLiteral(TL_WINE_PROTOCOL_TEST_XML)
+        : parser.value(xmlOption);
+
     ProtocolJsonCase testCase;
     ProtocolJsonValidationError validationError;
     ProtocolJsonRunResult result;
     if (!loadProtocolJsonCase(parser.value(inputOption),
                               parser.value(expectedOption),
-                              parser.value(metadataOption),
-                              parser.value(xmlOption),
+                              metadataPath,
+                              xmlPath,
                               testCase,
                               validationError)) {
         result = validationFailureResult(testCase.input.value(QStringLiteral("case")).toString(),

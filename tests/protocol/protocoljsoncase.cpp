@@ -14,6 +14,10 @@
 namespace {
 const QString WindowManagementInterface =
     QStringLiteral("treeland_window_management_v1");
+const QString WineWindowManagementProtocol =
+    QStringLiteral("treeland_wine_window_management_v1");
+const QString WineWindowManagerInterface =
+    QStringLiteral("treeland_wine_window_manager_v1");
 
 bool fail(ProtocolJsonValidationError &error,
           const QString &category,
@@ -324,6 +328,145 @@ bool validateExpected(const QJsonObject &expected,
     }
     return true;
 }
+
+bool validateWineCase(const ProtocolJsonCase &testCase,
+                      const QJsonObject &managerInterface,
+                      ProtocolJsonValidationError &error)
+{
+    const QJsonObject input = testCase.input;
+    const QJsonObject expected = testCase.expected;
+    if (input.value(QStringLiteral("schema_version")).toInt(-1) != 1
+        || input.value(QStringLiteral("case")).toString().isEmpty()
+        || input.value(QStringLiteral("protocol")).toObject()
+               .value(QStringLiteral("interface")).toString() != WineWindowManagerInterface
+        || !input.value(QStringLiteral("server")).isObject()
+        || !input.value(QStringLiteral("client")).isObject()
+        || !input.value(QStringLiteral("steps")).isArray()) {
+        return fail(error, QStringLiteral("schema_error"),
+                    QStringLiteral("Wine input schema is incomplete"));
+    }
+    if (input.value(QStringLiteral("protocol")).toObject()
+            .value(QStringLiteral("version")).toInt(-1)
+        != managerInterface.value(QStringLiteral("version")).toInt(-2)) {
+        return fail(error, QStringLiteral("metadata_validation_error"),
+                    QStringLiteral("Wine protocol version differs from generated metadata"));
+    }
+    const QJsonArray outputs = input.value(QStringLiteral("server")).toObject()
+                                   .value(QStringLiteral("outputs")).toArray();
+    const QJsonArray objects = input.value(QStringLiteral("client")).toObject()
+                                   .value(QStringLiteral("objects")).toArray();
+    if (outputs.size() != 1
+        || outputs.first().toObject().value(QStringLiteral("geometry")).toArray().size() != 4
+        || objects.size() != 2
+        || objects.at(0).toObject().value(QStringLiteral("fixture")).toString()
+            != QStringLiteral("xdg_toplevel")
+        || !objects.at(0).toObject().value(QStringLiteral("mapped")).toBool()
+        || objects.at(1).toObject().value(QStringLiteral("interface")).toString()
+            != QStringLiteral("treeland_wine_window_control_v1")
+        || objects.at(1).toObject().value(QStringLiteral("for")).toString()
+            != QStringLiteral("$window")) {
+        return fail(error, QStringLiteral("adapter_validation_error"),
+                    QStringLiteral("Wine fixture object table is invalid"));
+    }
+
+    QSet<QString> captures;
+    QSet<QString> checkpoints;
+    bool sawRequest = false;
+    bool sawServerCondition = false;
+    bool sawDestroy = false;
+    bool sawDisconnect = false;
+    const bool disconnectBeforeCompletion = input.value(QStringLiteral("case")).toString()
+        .endsWith(QStringLiteral("disconnect-before-completion"));
+    for (const QJsonValue &value : input.value(QStringLiteral("steps")).toArray()) {
+        const QJsonObject step = value.toObject();
+        if (step.size() != 1)
+            return fail(error, QStringLiteral("schema_error"),
+                        QStringLiteral("Each Wine step must contain one operation"));
+        if (step.contains(QStringLiteral("capture"))) {
+            const QJsonObject capture = step.value(QStringLiteral("capture")).toObject();
+            const QString name = capture.value(QStringLiteral("name")).toString();
+            if (name.isEmpty() || !isUnsignedInteger(capture.value(QStringLiteral("value"))))
+                return fail(error, QStringLiteral("schema_error"),
+                            QStringLiteral("Serial capture is invalid"));
+            captures.insert(name);
+        } else if (step.contains(QStringLiteral("request"))) {
+            const QJsonObject request = step.value(QStringLiteral("request")).toObject();
+            const QJsonArray args = request.value(QStringLiteral("args")).toArray();
+            if (request.value(QStringLiteral("object")).toString() != QStringLiteral("control")
+                || request.value(QStringLiteral("name")).toString() != QStringLiteral("set_position")
+                || args.size() != 3 || !args.at(0).isDouble() || !args.at(1).isDouble()
+                || !args.at(2).isString() || !args.at(2).toString().startsWith(QLatin1Char('$'))
+                || !captures.contains(args.at(2).toString().mid(1))) {
+                return fail(error, QStringLiteral("adapter_validation_error"),
+                            QStringLiteral("set_position arguments or serial reference are invalid"));
+            }
+            sawRequest = true;
+        } else if (step.contains(QStringLiteral("barrier"))) {
+            const QJsonObject barrier = step.value(QStringLiteral("barrier")).toObject();
+            const QString type = barrier.value(QStringLiteral("type")).toString();
+            if (type == QStringLiteral("server_condition")) {
+                if (barrier.value(QStringLiteral("probe")).toString()
+                        != QStringLiteral("surface.geometry")
+                    || barrier.value(QStringLiteral("selector")).toObject()
+                           .value(QStringLiteral("app_id")).toString().isEmpty()
+                    || barrier.value(QStringLiteral("equals")).toArray().size() != 4) {
+                    return fail(error, QStringLiteral("schema_error"),
+                                QStringLiteral("server_condition is invalid"));
+                }
+                sawServerCondition = true;
+            } else if (type != QStringLiteral("client_roundtrip")) {
+                return fail(error, QStringLiteral("schema_error"),
+                            QStringLiteral("Unknown Wine barrier type"));
+            }
+        } else if (step.contains(QStringLiteral("checkpoint"))) {
+            checkpoints.insert(step.value(QStringLiteral("checkpoint")).toString());
+        } else if (step.contains(QStringLiteral("destroy"))) {
+            sawDestroy = true;
+        } else if (step.contains(QStringLiteral("disconnect"))) {
+            sawDisconnect = true;
+        } else {
+            return fail(error, QStringLiteral("schema_error"),
+                        QStringLiteral("Unsupported Wine operation"));
+        }
+    }
+    if (!sawRequest || !sawDisconnect
+        || (!disconnectBeforeCompletion
+            && (!sawServerCondition || !sawDestroy || checkpoints.isEmpty()))) {
+        return fail(error, QStringLiteral("schema_error"),
+                    QStringLiteral("Wine case lacks request, barrier, checkpoint, destroy, or disconnect"));
+    }
+
+    const QJsonObject source = expected.value(QStringLiteral("expectation_source")).toObject();
+    if (expected.value(QStringLiteral("schema_version")).toInt(-1) != 1
+        || source.value(QStringLiteral("review_status")).toString() != QStringLiteral("candidate")
+        || source.value(QStringLiteral("xml_sha256")).toString() != testCase.xmlSha256
+        || source.value(QStringLiteral("server_commit")).toString().isEmpty()) {
+        return fail(error, QStringLiteral("metadata_validation_error"),
+                    QStringLiteral("Wine expected provenance must be a matching candidate"));
+    }
+    const QJsonObject expectedCheckpoints = expected.value(QStringLiteral("checkpoints")).toObject();
+    for (const QString &checkpoint : checkpoints) {
+        const QJsonObject value = expectedCheckpoints.value(checkpoint).toObject();
+        if (!value.value(QStringLiteral("client_events")).isArray()
+            || !value.value(QStringLiteral("server_state")).isObject()) {
+            return fail(error, QStringLiteral("schema_error"),
+                        QStringLiteral("Wine checkpoint is incomplete"));
+        }
+    }
+    return expectedCheckpoints.size() == checkpoints.size()
+        || fail(error, QStringLiteral("schema_error"),
+                QStringLiteral("Wine checkpoint sets differ"));
+}
+}
+
+QString protocolJsonInputInterface(const QString &inputPath)
+{
+    QFile file(inputPath);
+    if (!file.open(QIODevice::ReadOnly))
+        return {};
+    return QJsonDocument::fromJson(file.readAll()).object()
+        .value(QStringLiteral("protocol")).toObject()
+        .value(QStringLiteral("interface")).toString();
 }
 
 bool loadProtocolJsonCase(const QString &inputPath,
@@ -349,17 +492,25 @@ bool loadProtocolJsonCase(const QString &inputPath,
     testCase.xmlSha256 = QString::fromLatin1(
         QCryptographicHash::hash(xml.readAll(), QCryptographicHash::Sha256).toHex());
 
-    if (!validateMetadataShape(testCase.metadata, error))
+    const bool wine = testCase.metadata.value(QStringLiteral("protocol")).toString()
+        == WineWindowManagementProtocol;
+    if (!wine && !validateMetadataShape(testCase.metadata, error))
         return false;
     QJsonObject interfaceStorage;
     const QJsonObject *interface = findInterface(
-        testCase.metadata, WindowManagementInterface, interfaceStorage);
+        testCase.metadata,
+        wine ? WineWindowManagerInterface : WindowManagementInterface,
+        interfaceStorage);
     if (!interface)
         return fail(error,
                     QStringLiteral("metadata_validation_error"),
                     QStringLiteral("Generated metadata lacks the requested interface"));
-    if (!validateInput(testCase.input, *interface, error)
-        || !validateExpected(testCase.expected, *interface, testCase.xmlSha256, error)) {
+    if ((wine && !validateWineCase(testCase, *interface, error))
+        || (!wine && (!validateInput(testCase.input, *interface, error)
+                      || !validateExpected(testCase.expected,
+                                           *interface,
+                                           testCase.xmlSha256,
+                                           error)))) {
         return false;
     }
 
@@ -369,6 +520,9 @@ bool loadProtocolJsonCase(const QString &inputPath,
                     QStringLiteral("schema_error"),
                     QStringLiteral("Input and expected case ID mismatch"));
     }
+
+    if (wine)
+        return true;
 
     const QJsonObject expectedCheckpoints =
         testCase.expected.value(QStringLiteral("checkpoints")).toObject();

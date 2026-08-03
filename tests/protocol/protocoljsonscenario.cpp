@@ -2,6 +2,8 @@
 
 #include "protocoljsonscenario.h"
 
+#include "wineprotocoljsonscenario.h"
+
 #include "clientruntime.h"
 #include "modules/window-management/windowmanagementinterfacev1.h"
 
@@ -458,7 +460,7 @@ QJsonObject ProtocolJsonRunResult::summary() const
     for (auto check = checks.cbegin(); check != checks.cend(); ++check)
         checkObject.insert(check.key(), check.value());
     QJsonObject object{
-        { QStringLiteral("stage"), QStringLiteral("poc-2") },
+        { QStringLiteral("stage"), actual.value(QStringLiteral("stage")) },
         { QStringLiteral("case"), actual.value(QStringLiteral("case")) },
         { QStringLiteral("result"), passed ? QStringLiteral("pass") : QStringLiteral("fail") },
         { QStringLiteral("checks"), checkObject },
@@ -478,6 +480,11 @@ QJsonObject ProtocolJsonRunResult::summary() const
 
 ProtocolJsonRunResult runProtocolJsonCase(const ProtocolJsonCase &testCase)
 {
+    if (testCase.input.value(QStringLiteral("protocol")).toObject()
+            .value(QStringLiteral("interface")).toString()
+        == QStringLiteral("treeland_wine_window_manager_v1")) {
+        return runWineProtocolJsonCase(testCase);
+    }
     ScenarioExecutor executor;
     return executor.run(testCase);
 }

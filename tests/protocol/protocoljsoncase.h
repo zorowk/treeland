@@ -20,6 +20,8 @@ struct ProtocolJsonValidationError
     QString message;
 };
 
+QString protocolJsonInputInterface(const QString &inputPath);
+
 bool loadProtocolJsonCase(const QString &inputPath,
                           const QString &expectedPath,
                           const QString &metadataPath,
