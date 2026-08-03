@@ -68,6 +68,11 @@ QJsonObject HelperScenarioResult::toJson() const
                     { QStringLiteral("client_events"), desktopEvents(requestEvents) },
                 } },
           } },
+        { QStringLiteral("request"),
+          QJsonObject{
+              { QStringLiteral("name"), QStringLiteral("set_desktop") },
+              { QStringLiteral("state"), static_cast<qint64>(Show) },
+          } },
         { QStringLiteral("server_state"),
           QJsonObject{
               { QStringLiteral("protocol_desktop_state"),

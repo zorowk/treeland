@@ -2,7 +2,10 @@
 
 #include "clientruntime.h"
 
-#include "windowmanagementadapter.h"
+#ifndef TL_WINDOW_MANAGEMENT_ADAPTER_HEADER
+#define TL_WINDOW_MANAGEMENT_ADAPTER_HEADER "windowmanagementadapter.h"
+#endif
+#include TL_WINDOW_MANAGEMENT_ADAPTER_HEADER
 
 #include <wayland-client.h>
 
