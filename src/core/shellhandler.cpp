@@ -1021,7 +1021,9 @@ void ShellHandler::onInputPopupSurfaceV2Removed(WInputPopupSurface *surface)
 
 void ShellHandler::setupSurfaceWindowMenu(SurfaceWrapper *wrapper)
 {
-    Q_ASSERT(m_windowMenu);
+    if (!m_windowMenu)
+        return;
+
     connect(wrapper,
             &SurfaceWrapper::windowMenuRequested,
             m_windowMenu,

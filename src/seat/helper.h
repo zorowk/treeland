@@ -201,6 +201,7 @@ public:
 
     void init(Treeland::Treeland *treeland);
     WindowManagementInterfaceV1 *initWindowManagement(WServer *server);
+    void initShellProtocols(WServer *server, WSeat *seat);
 
     RootSurfaceContainer *rootSurfaceContainer() const;
     Output *getOutput(WOutput *output) const;

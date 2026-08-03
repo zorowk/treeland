@@ -1359,6 +1359,17 @@ WindowManagementInterfaceV1 *Helper::initWindowManagement(WServer *server)
     return m_windowManagementInterfaceV1;
 }
 
+void Helper::initShellProtocols(WServer *server, WSeat *seat)
+{
+    Q_ASSERT(server);
+    Q_ASSERT(seat);
+    if (!m_seatManager)
+        m_seatManager = new SeatsManager(server, this);
+    if (!m_primarySeat)
+        m_primarySeat = seat;
+    m_shellHandler->init(server, seat);
+}
+
 void Helper::onSetCopyOutput(VirtualOutputInterfaceV1 *interface)
 {
     const QStringList requestedOutputs = interface->outputList();
@@ -1851,7 +1862,7 @@ void Helper::init(Treeland::Treeland *treeland)
         qCCritical(lcTlCore) << "No seat available after initialization, cannot continue";
         return;
     }
-    m_shellHandler->init(m_server, m_primarySeat);
+    initShellProtocols(m_server, m_primarySeat);
 
     connect(m_shellHandler->wallpaperShell(),
             &TreelandWallpaperShellInterfaceV1::wallpaperSurfaceAdded,
@@ -2753,6 +2764,9 @@ void Helper::setActivatedSurface(SurfaceWrapper *newActivateSurface, WSeat *seat
 
 void Helper::onRenderWindowActiveFocusItemChanged()
 {
+    if (!m_seatManager)
+        return;
+
     if (!keyboardFocusSurface()) {
         // Keyboard focus moved to a non-client window (e.g. internal QML component).
         // Notify all seats to clear the keyboard focus surface.
