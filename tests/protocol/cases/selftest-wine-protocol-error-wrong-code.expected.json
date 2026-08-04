@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "case": "wine-window-management.protocol-error-invalid-sibling",
+  "expectation_source": {
+    "generated_by": "codex",
+    "generator": "gpt-5",
+    "based_on": ["fault-injection", "wrong-protocol-error-code"],
+    "xml_sha256": "a411c9f8bae3b669b3dd9e378436a70e067fb19ea810ef3c96e9b739aeede095",
+    "server_commit": "c79617591cffb6bd52904fa63fcd45e2c1b79d0d",
+    "review_status": "candidate"
+  },
+  "checkpoints": {
+    "invalid-sibling-error": {
+      "connection": {
+        "display_error": 71,
+        "protocol_error_occurred": true,
+        "protocol_error": {
+          "interface": "treeland_wine_window_control_v1",
+          "code": 1,
+          "object": "control"
+        }
+      },
+      "client_events": [],
+      "server_state": { "surface.geometry": [0, 0, 300, 200] }
+    }
+  }
+}

@@ -349,6 +349,16 @@ add_wine_position_case(
     wine-disconnect-before-completion.expected.json
 )
 
+add_wine_position_case(
+    protocol-error-invalid-sibling
+    wine-protocol-error-invalid-sibling.input.json
+    wine-protocol-error-invalid-sibling.expected.json
+)
+set_tests_properties(
+    protocol-wine-window-management-protocol-error-invalid-sibling
+    PROPERTIES LABELS "protocol-high;json-runner;protocol-error"
+)
+
 add_test(
     NAME protocol-wire-window-management-json
     COMMAND treeland-protocol-test-runner
@@ -438,6 +448,32 @@ add_protocol_json_selftest(
     ${protocol_json_case_directory}/selftest-wine-wrong-position.expected.json
     checkpoint_probe_diff
     -DEXPECTED_CHECKPOINT=position-applied
+)
+add_protocol_json_selftest(
+    protocol-error-strict-validation
+    ${protocol_json_case_directory}/selftest-wine-protocol-error-strict.input.json
+    ${protocol_json_case_directory}/wine-protocol-error-invalid-sibling.expected.json
+    adapter_validation_error
+)
+add_protocol_json_selftest(
+    protocol-error-wrong-code
+    ${protocol_json_case_directory}/wine-protocol-error-invalid-sibling.input.json
+    ${protocol_json_case_directory}/selftest-wine-protocol-error-wrong-code.expected.json
+    checkpoint_protocol_error_diff
+    -DEXPECTED_CHECKPOINT=invalid-sibling-error
+)
+add_protocol_json_selftest(
+    protocol-error-wrong-object
+    ${protocol_json_case_directory}/wine-protocol-error-invalid-sibling.input.json
+    ${protocol_json_case_directory}/selftest-wine-protocol-error-wrong-object.expected.json
+    checkpoint_protocol_error_diff
+    -DEXPECTED_CHECKPOINT=invalid-sibling-error
+)
+set_tests_properties(
+    protocol-json-runner-protocol-error-strict-validation-selftest
+    protocol-json-runner-protocol-error-wrong-code-selftest
+    protocol-json-runner-protocol-error-wrong-object-selftest
+    PROPERTIES LABELS "protocol-high;json-runner;runner-selftest;protocol-error"
 )
 
 add_executable(protocol-json-contract-diff
