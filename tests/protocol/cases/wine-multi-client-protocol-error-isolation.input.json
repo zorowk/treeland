@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "case": "wine-window-management.multi-client.protocol-error-isolation",
+  "multi_client_test": true,
+  "protocol": { "interface": "treeland_wine_window_manager_v1", "version": 1 },
+  "server": {
+    "outputs": [{ "name": "HEADLESS-1", "geometry": [0, 0, 1280, 720], "scale": 1 }],
+    "disable_animations": true
+  },
+  "clients": [
+    {
+      "id": "client-1",
+      "objects": [
+        { "name": "window", "fixture": "xdg_toplevel", "app_id": "test.wine.multi.error", "size": [300, 200], "mapped": true },
+        { "name": "control", "interface": "treeland_wine_window_control_v1", "for": "$window" }
+      ]
+    },
+    {
+      "id": "client-2",
+      "objects": [
+        { "name": "window", "fixture": "xdg_toplevel", "app_id": "test.wine.multi.survivor", "size": [320, 220], "mapped": true },
+        { "name": "control", "interface": "treeland_wine_window_control_v1", "for": "$window" }
+      ]
+    }
+  ],
+  "steps": [
+    { "request": { "client": "client-1", "object": "control", "name": "set_z_order", "args": [0, 1], "expect_protocol_error": true } },
+    { "client_roundtrip": { "client": "client-2" } },
+    { "checkpoint": "client-1-error" },
+    { "request": { "client": "client-2", "object": "control", "name": "set_position", "args": [420, 210, 1] } },
+    { "checkpoint": "client-2-survives" },
+    { "disconnect": { "client": "client-1", "mode": "graceful" } },
+    { "destroy": { "client": "client-2" } },
+    { "disconnect": { "client": "client-2", "mode": "graceful" } }
+  ]
+}

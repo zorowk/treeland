@@ -66,6 +66,7 @@ public Q_SLOTS:
     void setPosition(qint32 x, qint32 y, quint32 serial);
     void sendPosition(qint32 x, qint32 y, quint32 serial);
     void setZOrder(quint32 operation, quint32 siblingId);
+    void clientRoundtrip();
     void destroyObjects();
     void destroyControlProxyOnly();
     void disconnectClient();

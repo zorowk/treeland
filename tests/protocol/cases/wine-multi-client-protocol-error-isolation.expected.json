@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "case": "wine-window-management.multi-client.protocol-error-isolation",
+  "expectation_source": {
+    "generated_by": "codex", "generator": "gpt-5", "based_on": ["wayland-client-error-isolation", "manager-binding-session"],
+    "xml_sha256": "a411c9f8bae3b669b3dd9e378436a70e067fb19ea810ef3c96e9b739aeede095",
+    "server_commit": "772802c6c", "review_status": "candidate"
+  },
+  "checkpoints": {
+    "client-1-error": {
+      "clients": {
+        "client-1": {
+          "connection": { "display_error": 71, "protocol_error_occurred": true, "protocol_error": { "interface": "treeland_wine_window_control_v1", "code": 0, "object": "control" } },
+          "client_events": [],
+          "objects": { "window_id": 1, "display_alive": true, "manager_proxy_alive": true, "control_proxy_alive": true, "surface_proxy_alive": true },
+          "server_state": { "surface.geometry": [] }
+        },
+        "client-2": {
+          "connection": { "display_error": 0, "protocol_error_occurred": false },
+          "client_events": [],
+          "objects": { "window_id": 1, "display_alive": true, "manager_proxy_alive": true, "control_proxy_alive": true, "surface_proxy_alive": true },
+          "server_state": { "surface.geometry": [0, 0, 320, 220] }
+        }
+      },
+      "remote": { "control_resource_count": 1, "destroyed_control_resource_count": 1, "client_count": 1, "surface_count": 1, "stack_order": ["client-2"] }
+    },
+    "client-2-survives": {
+      "clients": {
+        "client-1": {
+          "connection": { "display_error": 71, "protocol_error_occurred": true, "protocol_error": { "interface": "treeland_wine_window_control_v1", "code": 0, "object": "control" } },
+          "client_events": [],
+          "objects": { "window_id": 1, "display_alive": true, "manager_proxy_alive": true, "control_proxy_alive": true, "surface_proxy_alive": true },
+          "server_state": { "surface.geometry": [] }
+        },
+        "client-2": {
+          "connection": { "display_error": 0, "protocol_error_occurred": false },
+          "client_events": [{ "event": "configure_position", "args": [420, 210, 1], "object": "client-2/control" }],
+          "objects": { "window_id": 1, "display_alive": true, "manager_proxy_alive": true, "control_proxy_alive": true, "surface_proxy_alive": true },
+          "server_state": { "surface.geometry": [420, 210, 320, 220] }
+        }
+      },
+      "remote": { "control_resource_count": 1, "destroyed_control_resource_count": 1, "client_count": 1, "surface_count": 1, "stack_order": ["client-2"] }
+    }
+  }
+}

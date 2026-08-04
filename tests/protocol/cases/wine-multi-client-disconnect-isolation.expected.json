@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "case": "wine-window-management.multi-client.disconnect-isolation",
+  "expectation_source": {
+    "generated_by": "codex", "generator": "gpt-5", "based_on": ["manager-binding-session", "per-client-event-and-resource-isolation"],
+    "xml_sha256": "a411c9f8bae3b669b3dd9e378436a70e067fb19ea810ef3c96e9b739aeede095",
+    "server_commit": "772802c6c", "review_status": "candidate"
+  },
+  "checkpoints": {
+    "client-1-operated": {
+      "clients": {
+        "client-1": {
+          "connection": { "display_error": 0, "protocol_error_occurred": false },
+          "client_events": [{ "event": "configure_position", "args": [100, 120, 1], "object": "client-1/control" }],
+          "objects": { "window_id": 1, "display_alive": true, "manager_proxy_alive": true, "control_proxy_alive": true, "surface_proxy_alive": true },
+          "server_state": { "surface.geometry": [100, 120, 300, 200] }
+        },
+        "client-2": {
+          "connection": { "display_error": 0, "protocol_error_occurred": false },
+          "client_events": [],
+          "objects": { "window_id": 1, "display_alive": true, "manager_proxy_alive": true, "control_proxy_alive": true, "surface_proxy_alive": true },
+          "server_state": { "surface.geometry": [0, 0, 320, 220] }
+        }
+      },
+      "remote": { "control_resource_count": 2, "destroyed_control_resource_count": 0, "client_count": 2, "surface_count": 2, "stack_order": ["client-1", "client-2"] }
+    },
+    "client-1-disconnected": {
+      "clients": {
+        "client-1": {
+          "connection": { "display_error": 0, "protocol_error_occurred": false },
+          "client_events": [],
+          "objects": { "window_id": 1, "display_alive": false, "manager_proxy_alive": false, "control_proxy_alive": false, "surface_proxy_alive": false },
+          "server_state": { "surface.geometry": [] }
+        },
+        "client-2": {
+          "connection": { "display_error": 0, "protocol_error_occurred": false },
+          "client_events": [{ "event": "configure_position", "args": [400, 200, 2], "object": "client-2/control" }],
+          "objects": { "window_id": 1, "display_alive": true, "manager_proxy_alive": true, "control_proxy_alive": true, "surface_proxy_alive": true },
+          "server_state": { "surface.geometry": [400, 200, 320, 220] }
+        }
+      },
+      "remote": { "control_resource_count": 1, "destroyed_control_resource_count": 1, "client_count": 1, "surface_count": 1, "stack_order": ["client-2"] }
+    }
+  }
+}

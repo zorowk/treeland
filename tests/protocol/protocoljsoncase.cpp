@@ -329,12 +329,145 @@ bool validateExpected(const QJsonObject &expected,
     return true;
 }
 
+bool validateWineMultiClientCase(const ProtocolJsonCase &testCase,
+                                 const QJsonObject &managerInterface,
+                                 ProtocolJsonValidationError &error)
+{
+    const QJsonObject input = testCase.input;
+    const QJsonObject expected = testCase.expected;
+    if (input.value(QStringLiteral("protocol")).toObject()
+            .value(QStringLiteral("version")).toInt(-1)
+        != managerInterface.value(QStringLiteral("version")).toInt(-2)) {
+        return fail(error, QStringLiteral("metadata_validation_error"),
+                    QStringLiteral("Wine protocol version differs from generated metadata"));
+    }
+
+    const QJsonArray outputs = input.value(QStringLiteral("server")).toObject()
+                                   .value(QStringLiteral("outputs")).toArray();
+    const QJsonArray clients = input.value(QStringLiteral("clients")).toArray();
+    QSet<QString> clientIds;
+    if (input.value(QStringLiteral("schema_version")).toInt(-1) != 1
+        || input.value(QStringLiteral("case")).toString().isEmpty()
+        || input.value(QStringLiteral("protocol")).toObject()
+               .value(QStringLiteral("interface")).toString() != WineWindowManagerInterface
+        || outputs.size() != 1
+        || outputs.first().toObject().value(QStringLiteral("geometry")).toArray().size() != 4
+        || clients.size() != 2 || !input.value(QStringLiteral("steps")).isArray()) {
+        return fail(error, QStringLiteral("schema_error"),
+                    QStringLiteral("Multi-client Wine input schema is incomplete"));
+    }
+    for (const QJsonValue &value : clients) {
+        const QJsonObject client = value.toObject();
+        const QString id = client.value(QStringLiteral("id")).toString();
+        const QJsonArray objects = client.value(QStringLiteral("objects")).toArray();
+        if (id.isEmpty() || clientIds.contains(id) || objects.size() != 2
+            || objects.at(0).toObject().value(QStringLiteral("fixture")).toString()
+                != QStringLiteral("xdg_toplevel")
+            || objects.at(0).toObject().value(QStringLiteral("app_id")).toString().isEmpty()
+            || objects.at(0).toObject().value(QStringLiteral("size")).toArray().size() != 2
+            || objects.at(1).toObject().value(QStringLiteral("interface")).toString()
+                != QStringLiteral("treeland_wine_window_control_v1")) {
+            return fail(error, QStringLiteral("adapter_validation_error"),
+                        QStringLiteral("Multi-client object table is invalid"));
+        }
+        clientIds.insert(id);
+    }
+
+    QSet<QString> checkpoints;
+    bool sawRequest = false;
+    bool sawDisconnect = false;
+    for (const QJsonValue &value : input.value(QStringLiteral("steps")).toArray()) {
+        const QJsonObject step = value.toObject();
+        if (step.size() != 1)
+            return fail(error, QStringLiteral("schema_error"),
+                        QStringLiteral("Each multi-client step must contain one operation"));
+        if (step.contains(QStringLiteral("request"))) {
+            const QJsonObject request = step.value(QStringLiteral("request")).toObject();
+            const QString name = request.value(QStringLiteral("name")).toString();
+            const QJsonArray args = request.value(QStringLiteral("args")).toArray();
+            if (!clientIds.contains(request.value(QStringLiteral("client")).toString())
+                || request.value(QStringLiteral("object")).toString()
+                    != QStringLiteral("control")
+                || (name == QStringLiteral("set_position") && args.size() != 3)
+                || (name == QStringLiteral("set_z_order") && args.size() != 2)
+                || (name != QStringLiteral("set_position")
+                    && name != QStringLiteral("set_z_order"))) {
+                return fail(error, QStringLiteral("adapter_validation_error"),
+                            QStringLiteral("Multi-client request is invalid"));
+            }
+            sawRequest = true;
+        } else if (step.contains(QStringLiteral("client_roundtrip"))) {
+            if (!clientIds.contains(step.value(QStringLiteral("client_roundtrip"))
+                                        .toObject().value(QStringLiteral("client")).toString())) {
+                return fail(error, QStringLiteral("schema_error"),
+                            QStringLiteral("Roundtrip references an unknown client"));
+            }
+        } else if (step.contains(QStringLiteral("disconnect"))
+                   || step.contains(QStringLiteral("destroy"))) {
+            const QString operation = step.constBegin().key();
+            const QJsonObject definition = step.value(operation).toObject();
+            if (!clientIds.contains(definition.value(QStringLiteral("client")).toString())) {
+                return fail(error, QStringLiteral("schema_error"),
+                            QStringLiteral("Lifecycle step references an unknown client"));
+            }
+            sawDisconnect = sawDisconnect || operation == QStringLiteral("disconnect");
+        } else if (step.contains(QStringLiteral("checkpoint"))) {
+            const QString name = step.value(QStringLiteral("checkpoint")).toString();
+            if (name.isEmpty() || checkpoints.contains(name))
+                return fail(error, QStringLiteral("schema_error"),
+                            QStringLiteral("Multi-client checkpoint names must be unique"));
+            checkpoints.insert(name);
+        } else {
+            return fail(error, QStringLiteral("schema_error"),
+                        QStringLiteral("Unsupported multi-client operation"));
+        }
+    }
+    if (!sawRequest || !sawDisconnect || checkpoints.isEmpty())
+        return fail(error, QStringLiteral("schema_error"),
+                    QStringLiteral("Multi-client case lacks request, disconnect, or checkpoint"));
+
+    const QJsonObject source = expected.value(QStringLiteral("expectation_source")).toObject();
+    const QString reviewStatus = source.value(QStringLiteral("review_status")).toString();
+    const QJsonObject expectedCheckpoints = expected.value(QStringLiteral("checkpoints")).toObject();
+    if (expected.value(QStringLiteral("schema_version")).toInt(-1) != 1
+        || (reviewStatus != QStringLiteral("candidate")
+            && reviewStatus != QStringLiteral("human-reviewed"))
+        || source.value(QStringLiteral("xml_sha256")).toString() != testCase.xmlSha256
+        || source.value(QStringLiteral("server_commit")).toString().isEmpty()
+        || expectedCheckpoints.size() != checkpoints.size()) {
+        return fail(error, QStringLiteral("metadata_validation_error"),
+                    QStringLiteral("Multi-client expected provenance or checkpoints are invalid"));
+    }
+    for (const QString &name : checkpoints) {
+        const QJsonObject checkpoint = expectedCheckpoints.value(name).toObject();
+        const QJsonObject expectedClients = checkpoint.value(QStringLiteral("clients")).toObject();
+        if (expectedClients.size() != clientIds.size()
+            || !checkpoint.value(QStringLiteral("remote")).isObject()) {
+            return fail(error, QStringLiteral("schema_error"),
+                        QStringLiteral("Multi-client checkpoint is incomplete"));
+        }
+        for (const QString &id : clientIds) {
+            const QJsonObject client = expectedClients.value(id).toObject();
+            if (!client.value(QStringLiteral("connection")).isObject()
+                || !client.value(QStringLiteral("client_events")).isArray()
+                || !client.value(QStringLiteral("objects")).isObject()
+                || !client.value(QStringLiteral("server_state")).isObject()) {
+                return fail(error, QStringLiteral("schema_error"),
+                            QStringLiteral("Client-scoped checkpoint is incomplete"));
+            }
+        }
+    }
+    return true;
+}
+
 bool validateWineCase(const ProtocolJsonCase &testCase,
                       const QJsonObject &managerInterface,
                       ProtocolJsonValidationError &error)
 {
     const QJsonObject input = testCase.input;
     const QJsonObject expected = testCase.expected;
+    if (input.value(QStringLiteral("multi_client_test")).toBool())
+        return validateWineMultiClientCase(testCase, managerInterface, error);
     const bool lifecycleTest = input.value(QStringLiteral("lifecycle_test")).toBool();
     const QString validationMode = input.value(QStringLiteral("validation_mode"))
                                        .toString(QStringLiteral("strict"));

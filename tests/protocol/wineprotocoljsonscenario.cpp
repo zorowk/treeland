@@ -10,6 +10,7 @@
 #include "seat/helper.h"
 #include "surface/surfacewrapper.h"
 #include "wineclientworker.h"
+#include "winemulticlientscenario.h"
 
 #include <wbackend.h>
 #include <woutput.h>
@@ -776,6 +777,8 @@ private:
 
 ProtocolJsonRunResult runWineProtocolJsonCase(const ProtocolJsonCase &testCase)
 {
+    if (testCase.input.value(QStringLiteral("multi_client_test")).toBool())
+        return runWineMultiClientProtocolJsonCase(testCase);
     WineScenarioExecutor executor;
     return executor.run(testCase);
 }

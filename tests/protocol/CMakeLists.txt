@@ -241,6 +241,8 @@ add_executable(treeland-protocol-test-runner
     protocoljsonscenario.h
     wineprotocoljsonscenario.cpp
     wineprotocoljsonscenario.h
+    winemulticlientscenario.cpp
+    winemulticlientscenario.h
     ${CMAKE_BINARY_DIR}/src/modules/window-management/qwayland-server-treeland-window-management-v1.cpp
 )
 target_link_libraries(treeland-protocol-test-runner
@@ -381,6 +383,25 @@ add_wine_lifecycle_case(graceful-disconnect)
 add_wine_lifecycle_case(abrupt-disconnect)
 add_wine_lifecycle_case(server-shutdown)
 
+function(add_wine_multi_client_case name)
+    add_test(
+        NAME protocol-wine-window-management-multi-client-${name}
+        COMMAND treeland-protocol-test-runner
+            --input ${protocol_json_case_directory}/wine-multi-client-${name}.input.json
+            --expected ${protocol_json_case_directory}/wine-multi-client-${name}.expected.json
+            --dump-actual
+                ${CMAKE_CURRENT_BINARY_DIR}/test-results/mvp-d3/${name}.actual.json
+            --report-dir ${CMAKE_CURRENT_BINARY_DIR}/test-results/mvp-d3/${name}
+    )
+    set_tests_properties(protocol-wine-window-management-multi-client-${name} PROPERTIES
+        LABELS "protocol-high;json-runner;multi-client;mvp-d3"
+        TIMEOUT 40
+    )
+endfunction()
+
+add_wine_multi_client_case(disconnect-isolation)
+add_wine_multi_client_case(protocol-error-isolation)
+
 add_test(
     NAME protocol-wire-window-management-json
     COMMAND treeland-protocol-test-runner
@@ -498,6 +519,13 @@ add_protocol_json_selftest(
     checkpoint_lifecycle_diff
     -DEXPECTED_CHECKPOINT=disconnected
 )
+add_protocol_json_selftest(
+    multi-client-wrong-attribution
+    ${protocol_json_case_directory}/wine-multi-client-disconnect-isolation.input.json
+    ${protocol_json_case_directory}/selftest-wine-multi-client-wrong-attribution.expected.json
+    checkpoint_client_isolation_diff
+    -DEXPECTED_CHECKPOINT=client-1-operated
+)
 set_tests_properties(
     protocol-json-runner-protocol-error-strict-validation-selftest
     protocol-json-runner-protocol-error-wrong-code-selftest
@@ -507,6 +535,11 @@ set_tests_properties(
 set_tests_properties(
     protocol-json-runner-lifecycle-resource-not-restored-selftest
     PROPERTIES LABELS "protocol-high;json-runner;runner-selftest;abrupt-disconnect;mvp-d2-accepted"
+)
+set_tests_properties(
+    protocol-json-runner-multi-client-wrong-attribution-selftest
+    PROPERTIES LABELS "protocol-high;json-runner;runner-selftest;multi-client;mvp-d3"
+        TIMEOUT 40
 )
 
 add_executable(protocol-json-contract-diff

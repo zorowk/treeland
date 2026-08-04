@@ -296,6 +296,18 @@ void WineClientWorker::setZOrder(quint32 operation, quint32 siblingId)
     Q_EMIT stepFinished(result(value.step, true));
 }
 
+void WineClientWorker::clientRoundtrip()
+{
+    m_events = {};
+    WineClientStepResult value;
+    value.step = QStringLiteral("client_roundtrip");
+    if (!roundtrip(value)) {
+        Q_EMIT stepFinished(value);
+        return;
+    }
+    Q_EMIT stepFinished(result(value.step, true));
+}
+
 void WineClientWorker::destroyObjects()
 {
     m_events = {};
