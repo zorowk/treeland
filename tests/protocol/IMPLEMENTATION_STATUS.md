@@ -1,27 +1,28 @@
 # Treeland Wayland Protocol Test Implementation Status
 
-Current stage: PoC 3
-State: accepted
+Current stage: MVP-D1
+State: awaiting_human_validation
 Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3]
 
 Stage commits:
-- `2d38dd31f4561d3147ec57c47e419268fdb84479` refactor(protocol): expose focused shell protocol initialization
-- `c79617591cffb6bd52904fa63fcd45e2c1b79d0d` fix(protocol): reject Wine positions outside active outputs
-- `5953ee035d47d7a2bb96dcbe7f35de13d0946934` test(protocol): exercise Wine window position behavior
+- `931cff4c0ee73da91acc413af1cf3a9e15fed3ca` test(protocol): support expected Wayland protocol errors
+- `681bd57eb5bda81bbdb9545b603885ac6d13aef4` test(protocol): exercise Wine invalid-sibling protocol error
 
 Automated validation:
-- 使用官方 Wayland scanner 生成 Wine private protocol 与 stable xdg-shell client bindings，
-  并使用 generated metadata 做接口和版本预检：通过。
-- 真实 `Helper::initShellProtocols()` → `ShellHandler::init()` 生产接线、headless output、
-  mapped xdg_toplevel、shm buffer、跨协议 `new_id` window control fixture：通过。
-- `set_position(100, 120)` 更新 `surface.geometry`，client event 回显请求 serial：通过。
-- 1280x720 output 的原点 `(0, 0)` 接受；负坐标、右边界 `x=1280`、下边界
-  `y=720` 和远端 `(1400, 800)` 均拒绝并保持当前 geometry：通过。
-- client 在 request flush 后、completion 前断开，client/surface 数量恢复基线且客户端线程退出：通过。
-- 错误位置 expected self-test 以 `checkpoint_probe_diff` 和目标 checkpoint 失败：通过。
+- `strict` validation 在 marshal 前以 `adapter_validation_error` 拒绝
+  `set_z_order(hwnd_top, sibling_id=1)`：通过。
+- `wire` validation 保留对象、request、参数类型和 enum 范围校验，仅允许上述安全语义错误
+  到达正式 `WineWindowControl::set_z_order()`：通过。
+- 真实 Wayland protocol error 记录 `treeland_wine_window_control_v1` interface、动态
+  object ID、error code `0`、symbolic object `control` 和 display error `EPROTO`：通过。
+- expected matcher 验证 protocol error；错误 code 和错误 symbolic object self-test 均以
+  `checkpoint_protocol_error_diff` 和目标 checkpoint 失败：通过。
+- protocol error 后不发送 protocol destructor，本地 proxy、display、client 和 surface
+  安全清理并恢复资源基线：通过。
+- `ctest --test-dir build-feat-testprotocol -L protocol-error --output-on-failure`：4/4 通过。
 - `ctest --test-dir build-feat-testprotocol -R
   'protocol-(wire|high)-window-management|protocol-window-management-(generated-adapter-output|adapter-contract|json-contract|json-repeatable)|protocol-json-runner|protocol-wine-window-management'
-  --output-on-failure`：24/24 通过。
+  --output-on-failure`：28/28 通过。
 
 Manual validation command:
 ```bash
@@ -30,42 +31,31 @@ cmake --build build-feat-testprotocol \
   -j8
 
 ./build-feat-testprotocol/tests/protocol/treeland-protocol-test-runner \
-  --input tests/protocol/cases/wine-set-position.input.json \
-  --expected tests/protocol/cases/wine-set-position.expected.json \
-  --dump-actual build-feat-testprotocol/test-results/poc-3/wine-set-position.actual.json \
-  --report-dir build-feat-testprotocol/test-results/poc-3/wine-set-position \
+  --input tests/protocol/cases/wine-protocol-error-invalid-sibling.input.json \
+  --expected tests/protocol/cases/wine-protocol-error-invalid-sibling.expected.json \
+  --dump-actual build-feat-testprotocol/test-results/mvp-d1/invalid-sibling.actual.json \
+  --report-dir build-feat-testprotocol/test-results/mvp-d1/invalid-sibling \
   --verbose
 
-./build-feat-testprotocol/tests/protocol/treeland-protocol-test-runner \
-  --input tests/protocol/cases/wine-set-position-outside-output.input.json \
-  --expected tests/protocol/cases/wine-set-position-outside-output.expected.json \
-  --dump-actual build-feat-testprotocol/test-results/poc-3/wine-set-position-outside-output.actual.json \
-  --report-dir build-feat-testprotocol/test-results/poc-3/wine-set-position-outside-output \
-  --verbose
-
-./build-feat-testprotocol/tests/protocol/treeland-protocol-test-runner \
-  --input tests/protocol/cases/wine-disconnect-before-completion.input.json \
-  --expected tests/protocol/cases/wine-disconnect-before-completion.expected.json \
-  --dump-actual build-feat-testprotocol/test-results/poc-3/wine-disconnect-before-completion.actual.json \
-  --report-dir build-feat-testprotocol/test-results/poc-3/wine-disconnect-before-completion \
-  --verbose
+ctest --test-dir build-feat-testprotocol \
+  -L protocol-error \
+  --output-on-failure
 
 ctest --test-dir build-feat-testprotocol \
   -R 'protocol-(wire|high)-window-management|protocol-window-management-(generated-adapter-output|adapter-contract|json-contract|json-repeatable)|protocol-json-runner|protocol-wine-window-management' \
   --output-on-failure
 ```
 
-Human validation: passed
+Human validation: pending
 
 Known issues:
-- PoC 3 仅扩展 Wine window position 所需的最小 `new_id`、跨协议对象、
-  xdg/shm fixture、serial 引用、`surface.geometry` probe 和 `server_condition`。
-- 不扩展到多客户端、恶意 wire、通用 fd DSL、完整 array/fixed/event-new-id、
-  frame presentation 或截图比较。
-- PoC 3 的三个正向 expected 已随本阶段人工验收更新为 `human-reviewed`；故障检测
-  self-test 的故意错误 expected 继续保持 `candidate`。
-- 当前 Wine client 使用官方生成的协议 bindings 和专用 fixture；通用 generated adapter
-  尚未实现跨协议对象表解析、request `new_id` 注册及自动 listener 路由。
+- MVP-D1 只覆盖可由合法生成 C API 表达的 Wine `invalid_sibling` protocol error；不发送
+  畸形 opcode，不伪造 signature，也不实现 malicious client。
+- `wire` 目前只绕过 `set_z_order` 的 sibling 语义约束；未知 request、错误对象、错误参数类型
+  和越界 `z_order_op` 仍在 marshal 前拒绝。
+- symbolic object name 是基于客户端对象表的 best-effort 映射；actual 始终保留动态 object ID，
+  映射失败时名称允许为空。
+- 正向 expected 仍为 `candidate`，需人工核对 actual 后才能更新为 `human-reviewed`。
 - 受控沙箱不允许 Unix socket `bind()`，真实 wire 测试需要在获准的非沙箱环境运行。
 
-Next authorized action: start MVP-D1 protocol-error implementation; preserve all PoC 0A through PoC 3 regressions
+Next authorized action: run and report MVP-D1 manual validation; do not start MVP-D2 until MVP-D1 is accepted
