@@ -437,12 +437,14 @@ bool validateWineCase(const ProtocolJsonCase &testCase,
     }
 
     const QJsonObject source = expected.value(QStringLiteral("expectation_source")).toObject();
+    const QString reviewStatus = source.value(QStringLiteral("review_status")).toString();
     if (expected.value(QStringLiteral("schema_version")).toInt(-1) != 1
-        || source.value(QStringLiteral("review_status")).toString() != QStringLiteral("candidate")
+        || (reviewStatus != QStringLiteral("candidate")
+            && reviewStatus != QStringLiteral("human-reviewed"))
         || source.value(QStringLiteral("xml_sha256")).toString() != testCase.xmlSha256
         || source.value(QStringLiteral("server_commit")).toString().isEmpty()) {
         return fail(error, QStringLiteral("metadata_validation_error"),
-                    QStringLiteral("Wine expected provenance must be a matching candidate"));
+                    QStringLiteral("Wine expected provenance is incomplete or does not match"));
     }
     const QJsonObject expectedCheckpoints = expected.value(QStringLiteral("checkpoints")).toObject();
     for (const QString &checkpoint : checkpoints) {

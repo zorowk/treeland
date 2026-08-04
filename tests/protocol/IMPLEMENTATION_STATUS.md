@@ -1,8 +1,8 @@
 # Treeland Wayland Protocol Test Implementation Status
 
 Current stage: PoC 3
-State: awaiting_human_validation
-Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2]
+State: accepted
+Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3]
 
 Stage commits:
 - `2d38dd31f4561d3147ec57c47e419268fdb84479` refactor(protocol): expose focused shell protocol initialization
@@ -55,14 +55,17 @@ ctest --test-dir build-feat-testprotocol \
   --output-on-failure
 ```
 
-Human validation: pending; PoC 3 expected remains candidate
+Human validation: passed
 
 Known issues:
 - PoC 3 仅扩展 Wine window position 所需的最小 `new_id`、跨协议对象、
   xdg/shm fixture、serial 引用、`surface.geometry` probe 和 `server_condition`。
 - 不扩展到多客户端、恶意 wire、通用 fd DSL、完整 array/fixed/event-new-id、
   frame presentation 或截图比较。
-- PoC 3 expected 必须保持 `candidate`，直到人工审核。
+- PoC 3 的三个正向 expected 已随本阶段人工验收更新为 `human-reviewed`；故障检测
+  self-test 的故意错误 expected 继续保持 `candidate`。
+- 当前 Wine client 使用官方生成的协议 bindings 和专用 fixture；通用 generated adapter
+  尚未实现跨协议对象表解析、request `new_id` 注册及自动 listener 路由。
 - 受控沙箱不允许 Unix socket `bind()`，真实 wire 测试需要在获准的非沙箱环境运行。
 
-Next authorized action: human-validate PoC 3 only; do not accept PoC 3 or start a later stage automatically
+Next authorized action: start MVP-D1 protocol-error implementation; preserve all PoC 0A through PoC 3 regressions

@@ -328,7 +328,7 @@ function(add_wine_position_case name input expected)
             --report-dir ${CMAKE_CURRENT_BINARY_DIR}/test-results/poc-3/${name}
     )
     set_tests_properties(protocol-wine-window-management-${name} PROPERTIES
-        LABELS "protocol-high;json-runner;poc-3-candidate"
+        LABELS "protocol-high;json-runner;poc-3-accepted"
         TIMEOUT 30
     )
 endfunction()
