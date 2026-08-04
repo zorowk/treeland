@@ -43,6 +43,28 @@ WineClientStepResult WineClientWorker::result(const QString &step,
     value.controlCreated = m_controlCreated;
     value.protocolDestructorSent = m_protocolDestructorSent;
     value.displayError = m_display ? wl_display_get_error(m_display) : 0;
+    value.protocolErrorOccurred = value.displayError == EPROTO;
+    if (value.protocolErrorOccurred) {
+        const wl_interface *interface = nullptr;
+        uint32_t objectId = 0;
+        value.protocolErrorCode =
+            wl_display_get_protocol_error(m_display, &interface, &objectId);
+        value.protocolErrorObjectId = objectId;
+        if (interface)
+            value.protocolErrorInterface = QString::fromUtf8(interface->name);
+
+        const auto proxyId = [](const void *proxy) {
+            return proxy
+                ? wl_proxy_get_id(reinterpret_cast<wl_proxy *>(const_cast<void *>(proxy)))
+                : 0;
+        };
+        if (objectId == proxyId(m_control))
+            value.protocolErrorObject = QStringLiteral("control");
+        else if (objectId == proxyId(m_manager))
+            value.protocolErrorObject = QStringLiteral("manager");
+        else if (objectId == proxyId(m_toplevel))
+            value.protocolErrorObject = QStringLiteral("window");
+    }
     return value;
 }
 
@@ -50,10 +72,14 @@ bool WineClientWorker::roundtrip(WineClientStepResult &value)
 {
     if (m_display && wl_display_roundtrip(m_display) >= 0)
         return true;
-    value = result(value.step,
-                   false,
-                   QStringLiteral("transport_or_disconnect_error"),
-                   QStringLiteral("Wayland roundtrip failed"));
+    value = result(value.step, false);
+    if (value.protocolErrorOccurred) {
+        value.errorCategory = QStringLiteral("wayland_protocol_error");
+        value.errorMessage = QStringLiteral("Wayland server reported a protocol error");
+    } else {
+        value.errorCategory = QStringLiteral("transport_or_disconnect_error");
+        value.errorMessage = QStringLiteral("Wayland roundtrip failed");
+    }
     return false;
 }
 
@@ -245,6 +271,19 @@ void WineClientWorker::sendPosition(qint32 x, qint32 y, quint32 serial)
     Q_EMIT stepFinished(result(QStringLiteral("send_position"), true));
 }
 
+void WineClientWorker::setZOrder(quint32 operation, quint32 siblingId)
+{
+    m_events = {};
+    treeland_wine_window_control_v1_set_z_order(m_control, operation, siblingId);
+    WineClientStepResult value;
+    value.step = QStringLiteral("set_z_order");
+    if (!roundtrip(value)) {
+        Q_EMIT stepFinished(value);
+        return;
+    }
+    Q_EMIT stepFinished(result(value.step, true));
+}
+
 void WineClientWorker::destroyObjects()
 {
     if (m_control) {
@@ -273,26 +312,43 @@ void WineClientWorker::disconnectClient()
 
 void WineClientWorker::cleanup()
 {
-    if (m_control)
-        treeland_wine_window_control_v1_destroy(m_control);
-    if (m_toplevel)
-        xdg_toplevel_destroy(m_toplevel);
-    if (m_xdgSurface)
-        xdg_surface_destroy(m_xdgSurface);
-    if (m_surface)
-        wl_surface_destroy(m_surface);
-    if (m_buffer)
-        wl_buffer_destroy(m_buffer);
-    if (m_manager)
-        treeland_wine_window_manager_v1_destroy(m_manager);
-    if (m_xdgWmBase)
-        xdg_wm_base_destroy(m_xdgWmBase);
-    if (m_shm)
-        wl_shm_destroy(m_shm);
-    if (m_compositor)
-        wl_compositor_destroy(m_compositor);
-    if (m_registry)
-        wl_registry_destroy(m_registry);
+    if (m_display && wl_display_get_error(m_display) != 0) {
+        const auto destroyProxy = [](void *proxy) {
+            if (proxy)
+                wl_proxy_destroy(static_cast<wl_proxy *>(proxy));
+        };
+        destroyProxy(m_control);
+        destroyProxy(m_toplevel);
+        destroyProxy(m_xdgSurface);
+        destroyProxy(m_surface);
+        destroyProxy(m_buffer);
+        destroyProxy(m_manager);
+        destroyProxy(m_xdgWmBase);
+        destroyProxy(m_shm);
+        destroyProxy(m_compositor);
+        destroyProxy(m_registry);
+    } else {
+        if (m_control)
+            treeland_wine_window_control_v1_destroy(m_control);
+        if (m_toplevel)
+            xdg_toplevel_destroy(m_toplevel);
+        if (m_xdgSurface)
+            xdg_surface_destroy(m_xdgSurface);
+        if (m_surface)
+            wl_surface_destroy(m_surface);
+        if (m_buffer)
+            wl_buffer_destroy(m_buffer);
+        if (m_manager)
+            treeland_wine_window_manager_v1_destroy(m_manager);
+        if (m_xdgWmBase)
+            xdg_wm_base_destroy(m_xdgWmBase);
+        if (m_shm)
+            wl_shm_destroy(m_shm);
+        if (m_compositor)
+            wl_compositor_destroy(m_compositor);
+        if (m_registry)
+            wl_registry_destroy(m_registry);
+    }
     if (m_display)
         wl_display_disconnect(m_display);
     m_control = nullptr;

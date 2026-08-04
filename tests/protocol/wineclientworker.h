@@ -34,6 +34,11 @@ struct WineClientStepResult
     bool controlCreated = false;
     bool protocolDestructorSent = false;
     int displayError = 0;
+    bool protocolErrorOccurred = false;
+    QString protocolErrorInterface;
+    quint32 protocolErrorObjectId = 0;
+    quint32 protocolErrorCode = 0;
+    QString protocolErrorObject;
 };
 
 Q_DECLARE_METATYPE(WineClientStepResult)
@@ -52,6 +57,7 @@ public Q_SLOTS:
     void createWindowControl();
     void setPosition(qint32 x, qint32 y, quint32 serial);
     void sendPosition(qint32 x, qint32 y, quint32 serial);
+    void setZOrder(quint32 operation, quint32 siblingId);
     void destroyObjects();
     void disconnectClient();
 

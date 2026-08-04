@@ -158,7 +158,7 @@ public:
         const qsizetype clientCountBefore = socket->clients().size();
         const qsizetype surfaceCountBefore = helper->rootSurfaceContainer()->surfaces().size();
         WineClientStepResult snapshot;
-        SurfaceWrapper *wrapper = nullptr;
+        QPointer<SurfaceWrapper> wrapper;
         QJsonObject actualCheckpoints;
         QHash<QString, quint32> serials;
         QRectF geometryBefore;
@@ -211,14 +211,17 @@ public:
             } else if (step.contains(QStringLiteral("request"))) {
                 const QJsonObject request = step.value(QStringLiteral("request")).toObject();
                 const QJsonArray args = request.value(QStringLiteral("args")).toArray();
-                const QString serialReference = args.at(2).toString().mid(1);
+                const QString requestName = request.value(QStringLiteral("name")).toString();
                 const bool disconnectBeforeCompletion =
                     request.value(QStringLiteral("disconnect_before_completion")).toBool();
-                const QString requestStep = disconnectBeforeCompletion
-                    ? QStringLiteral("send_position") : QStringLiteral("set_position");
-                snapshot = waitForStep(requestStep,
-                                       [this, args, serial = serials.value(serialReference),
-                                        disconnectBeforeCompletion] {
+                if (requestName == QStringLiteral("set_position")) {
+                    const QString serialReference = args.at(2).toString().mid(1);
+                    const QString requestStep = disconnectBeforeCompletion
+                        ? QStringLiteral("send_position") : QStringLiteral("set_position");
+                    snapshot = waitForStep(
+                        requestStep,
+                        [this, args, serial = serials.value(serialReference),
+                         disconnectBeforeCompletion] {
                                            QMetaObject::invokeMethod(
                                                m_worker,
                                                [worker = m_worker, args, serial,
@@ -234,8 +237,24 @@ public:
                                                    }
                                                },
                                                Qt::QueuedConnection);
-                                       });
-                recordStep(result, QStringLiteral("step_%1_request").arg(index), snapshot);
+                        });
+                } else {
+                    snapshot = waitForStep(QStringLiteral("set_z_order"), [this, args] {
+                        QMetaObject::invokeMethod(
+                            m_worker,
+                            [worker = m_worker, args] {
+                                worker->setZOrder(static_cast<quint32>(args.at(0).toInteger()),
+                                                  static_cast<quint32>(args.at(1).toInteger()));
+                            },
+                            Qt::QueuedConnection);
+                    });
+                }
+                const bool expectedProtocolError = expectedHasProtocolError(testCase);
+                if (snapshot.protocolErrorOccurred && expectedProtocolError) {
+                    result.checks.insert(QStringLiteral("step_%1_request").arg(index), true);
+                } else {
+                    recordStep(result, QStringLiteral("step_%1_request").arg(index), snapshot);
+                }
             } else if (step.contains(QStringLiteral("barrier"))) {
                 const QJsonObject barrier = step.value(QStringLiteral("barrier")).toObject();
                 if (barrier.value(QStringLiteral("type")).toString()
@@ -254,7 +273,7 @@ public:
                 }
             } else if (step.contains(QStringLiteral("checkpoint"))) {
                 const QString name = step.value(QStringLiteral("checkpoint")).toString();
-                const QJsonObject actual = checkpoint(snapshot, wrapper);
+                const QJsonObject actual = checkpoint(snapshot, wrapper.data());
                 actualCheckpoints.insert(name, actual);
                 compareCheckpoint(testCase, name, actual, result);
                 result.checks.insert(QStringLiteral("step_%1_checkpoint").arg(index),
@@ -311,8 +330,12 @@ public:
             server->stop();
         socket->close();
         stopThread();
+        const QString stage = testCase.input.value(QStringLiteral("validation_mode")).toString()
+                == QStringLiteral("wire")
+            ? QStringLiteral("mvp-d1")
+            : QStringLiteral("poc-3");
         result.actual = QJsonObject{
-            { QStringLiteral("stage"), QStringLiteral("poc-3") },
+            { QStringLiteral("stage"), stage },
             { QStringLiteral("case"), testCase.caseId },
             { QStringLiteral("expectation_source"),
               testCase.expected.value(QStringLiteral("expectation_source")) },
@@ -354,6 +377,19 @@ public:
     }
 
 private:
+    static bool expectedHasProtocolError(const ProtocolJsonCase &testCase)
+    {
+        const QJsonObject checkpoints =
+            testCase.expected.value(QStringLiteral("checkpoints")).toObject();
+        for (const QJsonValue &value : checkpoints) {
+            if (value.toObject().value(QStringLiteral("connection")).toObject()
+                    .value(QStringLiteral("protocol_error_occurred")).toBool()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     static QJsonArray geometryArray(const QRectF &geometry)
     {
         return { geometry.x(), geometry.y(), geometry.width(), geometry.height() };
@@ -452,12 +488,23 @@ private:
             event.insert(QStringLiteral("object"), QStringLiteral("control"));
             events.append(event);
         }
+        QJsonObject connection{
+            { QStringLiteral("display_error"), snapshot.displayError },
+            { QStringLiteral("protocol_error_occurred"), snapshot.protocolErrorOccurred },
+        };
+        if (snapshot.protocolErrorOccurred) {
+            connection.insert(
+                QStringLiteral("protocol_error"),
+                QJsonObject{
+                    { QStringLiteral("interface"), snapshot.protocolErrorInterface },
+                    { QStringLiteral("object_id"), qint64(snapshot.protocolErrorObjectId) },
+                    { QStringLiteral("code"), qint64(snapshot.protocolErrorCode) },
+                    { QStringLiteral("object"), snapshot.protocolErrorObject },
+                });
+        }
         return {
             { QStringLiteral("connection"),
-              QJsonObject{
-                  { QStringLiteral("display_error"), snapshot.displayError },
-                  { QStringLiteral("protocol_error_occurred"), false },
-              } },
+              connection },
             { QStringLiteral("client_events"), events },
             { QStringLiteral("server_state"),
               QJsonObject{
@@ -474,7 +521,28 @@ private:
     {
         const QJsonObject expected = testCase.expected.value(QStringLiteral("checkpoints"))
                                          .toObject().value(name).toObject();
-        if (expected.value(QStringLiteral("client_events"))
+        const QJsonObject expectedConnection =
+            expected.value(QStringLiteral("connection")).toObject();
+        const QJsonObject actualConnection = actual.value(QStringLiteral("connection")).toObject();
+        const QJsonObject expectedProtocolError =
+            expectedConnection.value(QStringLiteral("protocol_error")).toObject();
+        const QJsonObject actualProtocolError =
+            actualConnection.value(QStringLiteral("protocol_error")).toObject();
+        const bool connectionMatches =
+            expectedConnection.value(QStringLiteral("display_error"))
+                == actualConnection.value(QStringLiteral("display_error"))
+            && expectedConnection.value(QStringLiteral("protocol_error_occurred"))
+                == actualConnection.value(QStringLiteral("protocol_error_occurred"))
+            && (!expectedConnection.value(QStringLiteral("protocol_error_occurred")).toBool()
+                || (expectedProtocolError.value(QStringLiteral("interface"))
+                        == actualProtocolError.value(QStringLiteral("interface"))
+                    && expectedProtocolError.value(QStringLiteral("code"))
+                        == actualProtocolError.value(QStringLiteral("code"))
+                    && expectedProtocolError.value(QStringLiteral("object"))
+                        == actualProtocolError.value(QStringLiteral("object"))));
+        if (!connectionMatches) {
+            result.failureCategory = QStringLiteral("checkpoint_protocol_error_diff");
+        } else if (expected.value(QStringLiteral("client_events"))
             != actual.value(QStringLiteral("client_events"))) {
             result.failureCategory = QStringLiteral("checkpoint_event_diff");
         } else if (expected.value(QStringLiteral("server_state"))

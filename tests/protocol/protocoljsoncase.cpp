@@ -335,6 +335,8 @@ bool validateWineCase(const ProtocolJsonCase &testCase,
 {
     const QJsonObject input = testCase.input;
     const QJsonObject expected = testCase.expected;
+    const QString validationMode = input.value(QStringLiteral("validation_mode"))
+                                       .toString(QStringLiteral("strict"));
     if (input.value(QStringLiteral("schema_version")).toInt(-1) != 1
         || input.value(QStringLiteral("case")).toString().isEmpty()
         || input.value(QStringLiteral("protocol")).toObject()
@@ -344,6 +346,11 @@ bool validateWineCase(const ProtocolJsonCase &testCase,
         || !input.value(QStringLiteral("steps")).isArray()) {
         return fail(error, QStringLiteral("schema_error"),
                     QStringLiteral("Wine input schema is incomplete"));
+    }
+    if (validationMode != QStringLiteral("strict")
+        && validationMode != QStringLiteral("wire")) {
+        return fail(error, QStringLiteral("schema_error"),
+                    QStringLiteral("validation_mode must be strict or wire"));
     }
     if (input.value(QStringLiteral("protocol")).toObject()
             .value(QStringLiteral("version")).toInt(-1)
@@ -375,6 +382,7 @@ bool validateWineCase(const ProtocolJsonCase &testCase,
     bool sawServerCondition = false;
     bool sawDestroy = false;
     bool sawDisconnect = false;
+    bool expectsProtocolError = false;
     const bool disconnectBeforeCompletion = input.value(QStringLiteral("case")).toString()
         .endsWith(QStringLiteral("disconnect-before-completion"));
     for (const QJsonValue &value : input.value(QStringLiteral("steps")).toArray()) {
@@ -392,13 +400,36 @@ bool validateWineCase(const ProtocolJsonCase &testCase,
         } else if (step.contains(QStringLiteral("request"))) {
             const QJsonObject request = step.value(QStringLiteral("request")).toObject();
             const QJsonArray args = request.value(QStringLiteral("args")).toArray();
-            if (request.value(QStringLiteral("object")).toString() != QStringLiteral("control")
-                || request.value(QStringLiteral("name")).toString() != QStringLiteral("set_position")
-                || args.size() != 3 || !args.at(0).isDouble() || !args.at(1).isDouble()
-                || !args.at(2).isString() || !args.at(2).toString().startsWith(QLatin1Char('$'))
-                || !captures.contains(args.at(2).toString().mid(1))) {
+            const QString requestName = request.value(QStringLiteral("name")).toString();
+            if (request.value(QStringLiteral("object")).toString() != QStringLiteral("control")) {
                 return fail(error, QStringLiteral("adapter_validation_error"),
-                            QStringLiteral("set_position arguments or serial reference are invalid"));
+                            QStringLiteral("Wine request target is invalid"));
+            }
+            if (requestName == QStringLiteral("set_position")) {
+                if (args.size() != 3 || !args.at(0).isDouble() || !args.at(1).isDouble()
+                    || !args.at(2).isString()
+                    || !args.at(2).toString().startsWith(QLatin1Char('$'))
+                    || !captures.contains(args.at(2).toString().mid(1))) {
+                    return fail(
+                        error, QStringLiteral("adapter_validation_error"),
+                        QStringLiteral("set_position arguments or serial reference are invalid"));
+                }
+            } else if (requestName == QStringLiteral("set_z_order")) {
+                if (args.size() != 2 || !isUnsignedInteger(args.at(0))
+                    || !isUnsignedInteger(args.at(1)) || args.at(0).toInteger() > 4) {
+                    return fail(error, QStringLiteral("adapter_validation_error"),
+                                QStringLiteral("set_z_order arguments are invalid"));
+                }
+                const bool invalidSibling = args.at(0).toInteger() != 4
+                    && args.at(1).toInteger() != 0;
+                if (invalidSibling && validationMode == QStringLiteral("strict")) {
+                    return fail(error, QStringLiteral("adapter_validation_error"),
+                                QStringLiteral("set_z_order sibling_id must be zero for this op"));
+                }
+                expectsProtocolError = invalidSibling;
+            } else {
+                return fail(error, QStringLiteral("metadata_validation_error"),
+                            QStringLiteral("Unsupported Wine request: %1").arg(requestName));
             }
             sawRequest = true;
         } else if (step.contains(QStringLiteral("barrier"))) {
@@ -429,8 +460,8 @@ bool validateWineCase(const ProtocolJsonCase &testCase,
                         QStringLiteral("Unsupported Wine operation"));
         }
     }
-    if (!sawRequest || !sawDisconnect
-        || (!disconnectBeforeCompletion
+    if (!sawRequest || !sawDisconnect || (checkpoints.isEmpty() && expectsProtocolError)
+        || (!disconnectBeforeCompletion && !expectsProtocolError
             && (!sawServerCondition || !sawDestroy || checkpoints.isEmpty()))) {
         return fail(error, QStringLiteral("schema_error"),
                     QStringLiteral("Wine case lacks request, barrier, checkpoint, destroy, or disconnect"));
@@ -449,10 +480,24 @@ bool validateWineCase(const ProtocolJsonCase &testCase,
     const QJsonObject expectedCheckpoints = expected.value(QStringLiteral("checkpoints")).toObject();
     for (const QString &checkpoint : checkpoints) {
         const QJsonObject value = expectedCheckpoints.value(checkpoint).toObject();
+        const QJsonObject connection = value.value(QStringLiteral("connection")).toObject();
         if (!value.value(QStringLiteral("client_events")).isArray()
-            || !value.value(QStringLiteral("server_state")).isObject()) {
+            || !value.value(QStringLiteral("server_state")).isObject()
+            || !value.value(QStringLiteral("connection")).isObject()
+            || !connection.value(QStringLiteral("display_error")).isDouble()
+            || !connection.value(QStringLiteral("protocol_error_occurred")).isBool()) {
             return fail(error, QStringLiteral("schema_error"),
                         QStringLiteral("Wine checkpoint is incomplete"));
+        }
+        if (connection.value(QStringLiteral("protocol_error_occurred")).toBool()) {
+            const QJsonObject protocolError =
+                connection.value(QStringLiteral("protocol_error")).toObject();
+            if (protocolError.value(QStringLiteral("interface")).toString().isEmpty()
+                || !isUnsignedInteger(protocolError.value(QStringLiteral("code")))
+                || protocolError.value(QStringLiteral("object")).toString().isEmpty()) {
+                return fail(error, QStringLiteral("schema_error"),
+                            QStringLiteral("Expected protocol error is incomplete"));
+            }
         }
     }
     return expectedCheckpoints.size() == checkpoints.size()
