@@ -185,7 +185,7 @@ target_link_libraries(protocol-fixed-adapter-selftest
 
 add_test(NAME protocol-fixed-adapter-selftest COMMAND protocol-fixed-adapter-selftest)
 set_tests_properties(protocol-fixed-adapter-selftest PROPERTIES
-    LABELS "protocol-wire;generated-adapter;mvp-d4a"
+    LABELS "protocol-wire;generated-adapter;mvp-d4a-accepted"
     TIMEOUT 10
 )
 set_tests_properties(protocol-window-management-generated-adapter-output PROPERTIES
