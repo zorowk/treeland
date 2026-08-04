@@ -15,6 +15,7 @@
 #include <cerrno>
 #include <cstring>
 #include <sys/mman.h>
+#include <sys/socket.h>
 
 WineClientWorker::WineClientWorker(QObject *parent)
     : QObject(parent)
@@ -65,6 +66,17 @@ WineClientStepResult WineClientWorker::result(const QString &step,
         else if (objectId == proxyId(m_toplevel))
             value.protocolErrorObject = QStringLiteral("window");
     }
+    value.localDisplayAlive = m_display != nullptr;
+    value.localManagerProxyAlive = m_manager != nullptr;
+    value.localControlProxyAlive = m_control != nullptr;
+    value.localSurfaceProxyAlive = m_surface != nullptr;
+    value.localProxyCount = (m_registry != nullptr) + (m_compositor != nullptr)
+        + (m_shm != nullptr) + (m_xdgWmBase != nullptr) + (m_manager != nullptr)
+        + (m_surface != nullptr) + (m_xdgSurface != nullptr) + (m_toplevel != nullptr)
+        + (m_buffer != nullptr) + (m_control != nullptr);
+    value.destroyMode = m_destroyMode;
+    value.disconnectMode = m_disconnectMode;
+    value.abruptTransportClosed = m_abruptTransportClosed;
     return value;
 }
 
@@ -286,6 +298,8 @@ void WineClientWorker::setZOrder(quint32 operation, quint32 siblingId)
 
 void WineClientWorker::destroyObjects()
 {
+    m_events = {};
+    m_destroyMode = QStringLiteral("protocol");
     if (m_control) {
         treeland_wine_window_control_v1_destroy(m_control);
         m_control = nullptr;
@@ -304,53 +318,76 @@ void WineClientWorker::destroyObjects()
     Q_EMIT stepFinished(result(value.step, true));
 }
 
+void WineClientWorker::destroyControlProxyOnly()
+{
+    m_events = {};
+    m_destroyMode = QStringLiteral("proxy-only");
+    if (m_control) {
+        wl_proxy_destroy(reinterpret_cast<wl_proxy *>(m_control));
+        m_control = nullptr;
+    }
+    Q_EMIT stepFinished(result(QStringLiteral("destroy:proxy-only"), true));
+}
+
 void WineClientWorker::disconnectClient()
 {
+    m_events = {};
+    m_disconnectMode = QStringLiteral("graceful");
     cleanup();
     Q_EMIT stepFinished(result(QStringLiteral("disconnect"), true));
 }
 
-void WineClientWorker::cleanup()
+void WineClientWorker::disconnectAbruptly()
 {
-    if (m_display && wl_display_get_error(m_display) != 0) {
-        const auto destroyProxy = [](void *proxy) {
-            if (proxy)
-                wl_proxy_destroy(static_cast<wl_proxy *>(proxy));
-        };
-        destroyProxy(m_control);
-        destroyProxy(m_toplevel);
-        destroyProxy(m_xdgSurface);
-        destroyProxy(m_surface);
-        destroyProxy(m_buffer);
-        destroyProxy(m_manager);
-        destroyProxy(m_xdgWmBase);
-        destroyProxy(m_shm);
-        destroyProxy(m_compositor);
-        destroyProxy(m_registry);
-    } else {
-        if (m_control)
-            treeland_wine_window_control_v1_destroy(m_control);
-        if (m_toplevel)
-            xdg_toplevel_destroy(m_toplevel);
-        if (m_xdgSurface)
-            xdg_surface_destroy(m_xdgSurface);
-        if (m_surface)
-            wl_surface_destroy(m_surface);
-        if (m_buffer)
-            wl_buffer_destroy(m_buffer);
-        if (m_manager)
-            treeland_wine_window_manager_v1_destroy(m_manager);
-        if (m_xdgWmBase)
-            xdg_wm_base_destroy(m_xdgWmBase);
-        if (m_shm)
-            wl_shm_destroy(m_shm);
-        if (m_compositor)
-            wl_compositor_destroy(m_compositor);
-        if (m_registry)
-            wl_registry_destroy(m_registry);
+    m_events = {};
+    m_disconnectMode = QStringLiteral("abrupt");
+    if (m_display) {
+        const int fd = wl_display_get_fd(m_display);
+        m_abruptTransportClosed = shutdown(fd, SHUT_RDWR) == 0 || errno == ENOTCONN;
     }
-    if (m_display)
-        wl_display_disconnect(m_display);
+    cleanup();
+    Q_EMIT stepFinished(result(QStringLiteral("disconnect:abrupt"),
+                               m_abruptTransportClosed,
+                               m_abruptTransportClosed
+                                   ? QString{}
+                                   : QStringLiteral("transport_or_disconnect_error"),
+                               m_abruptTransportClosed
+                                   ? QString{}
+                                   : QStringLiteral("Unable to shut down Wayland transport")));
+}
+
+void WineClientWorker::observeServerShutdown()
+{
+    m_events = {};
+    m_disconnectMode = QStringLiteral("server-shutdown");
+    WineClientStepResult value;
+    value.step = QStringLiteral("server_shutdown");
+    if (m_display && wl_display_roundtrip(m_display) >= 0) {
+        Q_EMIT stepFinished(result(value.step,
+                                   false,
+                                   QStringLiteral("server_shutdown_error"),
+                                   QStringLiteral("Client remained connected after server shutdown")));
+        return;
+    }
+    Q_EMIT stepFinished(result(value.step, true));
+}
+
+void WineClientWorker::destroyLocalProxies()
+{
+    const auto destroyProxy = [](void *proxy) {
+        if (proxy)
+            wl_proxy_destroy(static_cast<wl_proxy *>(proxy));
+    };
+    destroyProxy(m_control);
+    destroyProxy(m_toplevel);
+    destroyProxy(m_xdgSurface);
+    destroyProxy(m_surface);
+    destroyProxy(m_buffer);
+    destroyProxy(m_manager);
+    destroyProxy(m_xdgWmBase);
+    destroyProxy(m_shm);
+    destroyProxy(m_compositor);
+    destroyProxy(m_registry);
     m_control = nullptr;
     m_toplevel = nullptr;
     m_xdgSurface = nullptr;
@@ -361,6 +398,13 @@ void WineClientWorker::cleanup()
     m_shm = nullptr;
     m_compositor = nullptr;
     m_registry = nullptr;
+}
+
+void WineClientWorker::cleanup()
+{
+    destroyLocalProxies();
+    if (m_display)
+        wl_display_disconnect(m_display);
     m_display = nullptr;
     m_shmFile.reset();
 }

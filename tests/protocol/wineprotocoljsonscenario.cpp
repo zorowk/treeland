@@ -5,6 +5,7 @@
 #include "core/qmlengine.h"
 #include "core/rootsurfacecontainer.h"
 #include "core/shellhandler.h"
+#include "modules/wine-window-management/winewindowmanagement.h"
 #include "protocoljsoncase.h"
 #include "seat/helper.h"
 #include "surface/surfacewrapper.h"
@@ -114,17 +115,36 @@ public:
         }
 
         helper->initShellProtocols(server.get(), seat);
-        auto *renderer = WRenderHelper::createRenderer(backend->handle(),
-                                                       QSGRendererInterface::Software);
-        auto *allocator = renderer ? qw_allocator::autocreate(*backend->handle(), *renderer)
-                                   : nullptr;
+        QPointer<WineWindowManager> wineManager = server->findInterface<WineWindowManager>();
+        qsizetype remoteControlCount = wineManager
+            ? wineManager->activeControlResourceCount() : -1;
+        quint64 destroyedControlCount = wineManager
+            ? wineManager->destroyedControlResourceCount() : 0;
+        if (wineManager) {
+            QObject::connect(
+                wineManager,
+                &WineWindowManager::controlResourceCountChanged,
+                server.get(),
+                [&](qsizetype active, quint64 destroyed) {
+                    remoteControlCount = active;
+                    destroyedControlCount = destroyed;
+                });
+        }
+        record(result, QStringLiteral("wine_manager_probe_ready"), wineManager,
+               QStringLiteral("fixture_error"),
+               QStringLiteral("WineWindowManager lifecycle probe is unavailable"));
+        std::unique_ptr<qw_renderer> renderer(
+            WRenderHelper::createRenderer(backend->handle(), QSGRendererInterface::Software));
+        std::unique_ptr<qw_allocator> allocator(
+            renderer ? qw_allocator::autocreate(*backend->handle(), *renderer) : nullptr);
         if (renderer)
             renderer->init_wl_display(*server->handle());
         auto *compositor = renderer
             ? qw_compositor::create(*server->handle(), 6, *renderer)
             : nullptr;
         auto *subcompositor = compositor ? qw_subcompositor::create(*server->handle()) : nullptr;
-        Q_UNUSED(subcompositor);
+        QPointer<qw_compositor> compositorGuard(compositor);
+        QPointer<qw_subcompositor> subcompositorGuard(subcompositor);
         record(result, QStringLiteral("renderer_created"),
                renderer && allocator && compositor,
                QStringLiteral("fixture_error"),
@@ -165,6 +185,7 @@ public:
         QRectF geometryAfter;
         bool surfaceWasMapped = false;
         bool disconnected = false;
+        bool serverShutdownRequested = false;
 
         if (result.failureCategory.isEmpty()) {
             snapshot = waitForStep(QStringLiteral("create_mapped_xdg_toplevel"),
@@ -196,6 +217,11 @@ public:
                                           Qt::QueuedConnection);
             });
             recordStep(result, QStringLiteral("control_created"), snapshot);
+            record(result,
+                   QStringLiteral("control_resource_created"),
+                   wineManager && waitForControlCount(wineManager, 1),
+                   QStringLiteral("resource_leak_or_lifecycle_error"),
+                   QStringLiteral("Remote control resource was not observed"));
         }
 
         const QJsonArray steps = testCase.input.value(QStringLiteral("steps")).toArray();
@@ -273,7 +299,14 @@ public:
                 }
             } else if (step.contains(QStringLiteral("checkpoint"))) {
                 const QString name = step.value(QStringLiteral("checkpoint")).toString();
-                const QJsonObject actual = checkpoint(snapshot, wrapper.data());
+                const QJsonObject actual = checkpoint(snapshot,
+                                                      wrapper.data(),
+                                                      remoteControlCount,
+                                                      destroyedControlCount,
+                                                      socket->clients().size(),
+                                                      helper->rootSurfaceContainer()
+                                                          ->surfaces().size(),
+                                                      server->isRunning());
                 actualCheckpoints.insert(name, actual);
                 compareCheckpoint(testCase, name, actual, result);
                 result.checks.insert(QStringLiteral("step_%1_checkpoint").arg(index),
@@ -281,19 +314,48 @@ public:
             } else if (step.contains(QStringLiteral("destroy"))) {
                 if (wrapper)
                     geometryAfter = wrapper->geometry();
-                snapshot = waitForStep(QStringLiteral("destroy"), [this] {
-                    QMetaObject::invokeMethod(m_worker,
-                                              &WineClientWorker::destroyObjects,
-                                              Qt::QueuedConnection);
-                });
+                const QString mode = step.value(QStringLiteral("destroy")).toObject()
+                                         .value(QStringLiteral("mode"))
+                                         .toString(QStringLiteral("protocol"));
+                if (mode == QStringLiteral("proxy-only")) {
+                    snapshot = waitForStep(QStringLiteral("destroy:proxy-only"), [this] {
+                        QMetaObject::invokeMethod(m_worker,
+                                                  &WineClientWorker::destroyControlProxyOnly,
+                                                  Qt::QueuedConnection);
+                    });
+                } else {
+                    snapshot = waitForStep(QStringLiteral("destroy"), [this] {
+                        QMetaObject::invokeMethod(m_worker,
+                                                  &WineClientWorker::destroyObjects,
+                                                  Qt::QueuedConnection);
+                    });
+                    if (snapshot.ok && wineManager) {
+                        record(result,
+                               QStringLiteral("step_%1_remote_destroy").arg(index),
+                               waitForControlCount(wineManager, 0),
+                               QStringLiteral("resource_not_restored"),
+                               QStringLiteral("Protocol destroy did not release remote control"));
+                    }
+                }
                 recordStep(result, QStringLiteral("step_%1_destroy").arg(index), snapshot);
             } else if (step.contains(QStringLiteral("disconnect"))) {
                 if (wrapper)
                     geometryAfter = wrapper->geometry();
-                snapshot = waitForStep(QStringLiteral("disconnect"), [this] {
-                    QMetaObject::invokeMethod(m_worker,
-                                              &WineClientWorker::disconnectClient,
-                                              Qt::QueuedConnection);
+                const QString mode = step.value(QStringLiteral("disconnect")).toObject()
+                                         .value(QStringLiteral("mode"))
+                                         .toString(QStringLiteral("graceful"));
+                const QString disconnectStep = mode == QStringLiteral("abrupt")
+                    ? QStringLiteral("disconnect:abrupt") : QStringLiteral("disconnect");
+                snapshot = waitForStep(disconnectStep, [this, mode] {
+                    if (mode == QStringLiteral("abrupt")) {
+                        QMetaObject::invokeMethod(m_worker,
+                                                  &WineClientWorker::disconnectAbruptly,
+                                                  Qt::QueuedConnection);
+                    } else {
+                        QMetaObject::invokeMethod(m_worker,
+                                                  &WineClientWorker::disconnectClient,
+                                                  Qt::QueuedConnection);
+                    }
                 });
                 disconnected = snapshot.ok
                     && waitForCondition([&socket] { return socket->clients().isEmpty(); },
@@ -301,10 +363,44 @@ public:
                 record(result, QStringLiteral("step_%1_disconnect").arg(index), disconnected,
                        QStringLiteral("resource_leak_or_lifecycle_error"),
                        QStringLiteral("Client did not disconnect cleanly"));
+                if (disconnected && wineManager) {
+                    record(result,
+                           QStringLiteral("step_%1_remote_resources_restored").arg(index),
+                           waitForControlCount(wineManager, 0),
+                           QStringLiteral("resource_not_restored"),
+                           QStringLiteral("Remote control resource did not return to baseline"));
+                }
+                if (disconnected) {
+                    record(result,
+                           QStringLiteral("step_%1_surfaces_restored").arg(index),
+                           waitForCondition(
+                               [root = helper->rootSurfaceContainer(), surfaceCountBefore] {
+                                   return root->surfaces().size() == surfaceCountBefore;
+                               },
+                               helper->rootSurfaceContainer(),
+                               SIGNAL(surfaceRemoved(SurfaceWrapper*))),
+                           QStringLiteral("resource_not_restored"),
+                           QStringLiteral("Surface resource did not return to baseline"));
+                }
+            } else if (step.contains(QStringLiteral("server_shutdown"))) {
+                serverShutdownRequested = true;
+                server->stop();
+                snapshot = waitForStep(QStringLiteral("server_shutdown"), [this] {
+                    QMetaObject::invokeMethod(m_worker,
+                                              &WineClientWorker::observeServerShutdown,
+                                              Qt::QueuedConnection);
+                });
+                disconnected = snapshot.ok && socket->clients().isEmpty();
+                recordStep(result, QStringLiteral("step_%1_server_shutdown").arg(index), snapshot);
+                record(result,
+                       QStringLiteral("step_%1_remote_resources_restored").arg(index),
+                       remoteControlCount == 0,
+                       QStringLiteral("resource_not_restored"),
+                       QStringLiteral("Server shutdown did not destroy remote control resource"));
             }
         }
 
-        if (!disconnected && !socket->clients().isEmpty()) {
+        if (snapshot.localDisplayAlive) {
             if (wrapper)
                 geometryAfter = wrapper->geometry();
             snapshot = waitForStep(QStringLiteral("disconnect"), [this] {
@@ -312,9 +408,9 @@ public:
                                           &WineClientWorker::disconnectClient,
                                           Qt::QueuedConnection);
             });
-            disconnected = snapshot.ok
-                && waitForCondition([&socket] { return socket->clients().isEmpty(); },
-                                    socket.get(), SIGNAL(clientsChanged()));
+            disconnected = snapshot.ok && (serverShutdownRequested || waitForCondition(
+                [&socket] { return socket->clients().isEmpty(); },
+                socket.get(), SIGNAL(clientsChanged())));
         }
         const bool surfacesRestored = waitForCondition(
             [root = helper->rootSurfaceContainer(), surfaceCountBefore] {
@@ -322,18 +418,21 @@ public:
             },
             helper->rootSurfaceContainer(), SIGNAL(surfaceRemoved(SurfaceWrapper*)));
         record(result, QStringLiteral("resources_restored"),
-               socket->clients().size() == clientCountBefore && surfacesRestored,
-               QStringLiteral("resource_leak_or_lifecycle_error"),
-               QStringLiteral("Client or surface count did not return to baseline"));
+               socket->clients().size() == clientCountBefore && surfacesRestored
+                   && remoteControlCount == 0,
+               QStringLiteral("resource_not_restored"),
+               QStringLiteral("Client, surface, or remote resource count did not return to baseline"));
 
         if (server->isRunning())
             server->stop();
         socket->close();
         stopThread();
-        const QString stage = testCase.input.value(QStringLiteral("validation_mode")).toString()
-                == QStringLiteral("wire")
-            ? QStringLiteral("mvp-d1")
-            : QStringLiteral("poc-3");
+        const QString stage = testCase.input.value(QStringLiteral("lifecycle_test")).toBool()
+            ? QStringLiteral("mvp-d2")
+            : testCase.input.value(QStringLiteral("validation_mode")).toString()
+                    == QStringLiteral("wire")
+                ? QStringLiteral("mvp-d1")
+                : QStringLiteral("poc-3");
         result.actual = QJsonObject{
             { QStringLiteral("stage"), stage },
             { QStringLiteral("case"), testCase.caseId },
@@ -368,9 +467,24 @@ public:
                     helper->rootSurfaceContainer()->surfaces().size() },
                   { QStringLiteral("protocol_destructor_sent"),
                     snapshot.protocolDestructorSent },
+                  { QStringLiteral("remote_control_resource_count"), remoteControlCount },
+                  { QStringLiteral("destroyed_control_resource_count"),
+                    qint64(destroyedControlCount) },
+                  { QStringLiteral("server_shutdown_requested"), serverShutdownRequested },
                   { QStringLiteral("client_thread_stopped"), m_thread == nullptr },
               } },
         };
+        QPointer<Helper> helperGuard(helper);
+        engine.reset();
+        if (helperGuard)
+            delete helperGuard;
+        server.reset();
+        if (subcompositorGuard)
+            delete subcompositorGuard;
+        if (compositorGuard)
+            delete compositorGuard;
+        allocator.reset();
+        renderer.reset();
         result.elapsedMs = elapsed.elapsed();
         result.passed = result.failureCategory.isEmpty();
         return result;
@@ -479,8 +593,37 @@ private:
         return wrapper->geometry() == target;
     }
 
+    static bool waitForControlCount(WineWindowManager *manager,
+                                    qsizetype expected,
+                                    int timeoutMs = 3000)
+    {
+        if (manager->activeControlResourceCount() == expected)
+            return true;
+        QEventLoop loop;
+        QTimer timer;
+        timer.setSingleShot(true);
+        const auto connection = QObject::connect(
+            manager,
+            &WineWindowManager::controlResourceCountChanged,
+            &loop,
+            [&](qsizetype active, quint64) {
+                if (active == expected)
+                    loop.quit();
+            });
+        QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+        timer.start(timeoutMs);
+        loop.exec();
+        QObject::disconnect(connection);
+        return manager->activeControlResourceCount() == expected;
+    }
+
     static QJsonObject checkpoint(const WineClientStepResult &snapshot,
-                                  SurfaceWrapper *wrapper)
+                                  SurfaceWrapper *wrapper,
+                                  qsizetype remoteControlCount,
+                                  quint64 destroyedControlCount,
+                                  qsizetype clientCount,
+                                  qsizetype surfaceCount,
+                                  bool serverRunning)
     {
         QJsonArray events;
         for (const QJsonValue &value : snapshot.events) {
@@ -510,6 +653,35 @@ private:
               QJsonObject{
                   { QStringLiteral("surface.geometry"),
                     wrapper ? geometryArray(wrapper->geometry()) : QJsonArray{} },
+              } },
+            { QStringLiteral("lifecycle"),
+              QJsonObject{
+                  { QStringLiteral("destroy_mode"), snapshot.destroyMode },
+                  { QStringLiteral("disconnect_mode"), snapshot.disconnectMode },
+                  { QStringLiteral("protocol_destructor_sent"),
+                    snapshot.protocolDestructorSent },
+                  { QStringLiteral("abrupt_transport_closed"),
+                    snapshot.abruptTransportClosed },
+                  { QStringLiteral("local"),
+                    QJsonObject{
+                        { QStringLiteral("display_alive"), snapshot.localDisplayAlive },
+                        { QStringLiteral("manager_proxy_alive"),
+                          snapshot.localManagerProxyAlive },
+                        { QStringLiteral("control_proxy_alive"),
+                          snapshot.localControlProxyAlive },
+                        { QStringLiteral("surface_proxy_alive"),
+                          snapshot.localSurfaceProxyAlive },
+                        { QStringLiteral("proxy_count"), snapshot.localProxyCount },
+                    } },
+                  { QStringLiteral("remote"),
+                    QJsonObject{
+                        { QStringLiteral("control_resource_count"), remoteControlCount },
+                        { QStringLiteral("destroyed_control_resource_count"),
+                          qint64(destroyedControlCount) },
+                        { QStringLiteral("client_count"), clientCount },
+                        { QStringLiteral("surface_count"), surfaceCount },
+                        { QStringLiteral("server_running"), serverRunning },
+                    } },
               } },
         };
     }
@@ -548,6 +720,10 @@ private:
         } else if (expected.value(QStringLiteral("server_state"))
                    != actual.value(QStringLiteral("server_state"))) {
             result.failureCategory = QStringLiteral("checkpoint_probe_diff");
+        } else if (expected.contains(QStringLiteral("lifecycle"))
+                   && expected.value(QStringLiteral("lifecycle"))
+                       != actual.value(QStringLiteral("lifecycle"))) {
+            result.failureCategory = QStringLiteral("checkpoint_lifecycle_diff");
         }
         if (!result.failureCategory.isEmpty()) {
             result.failureMessage = QStringLiteral("Checkpoint differs: %1").arg(name);

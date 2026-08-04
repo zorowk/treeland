@@ -335,6 +335,7 @@ bool validateWineCase(const ProtocolJsonCase &testCase,
 {
     const QJsonObject input = testCase.input;
     const QJsonObject expected = testCase.expected;
+    const bool lifecycleTest = input.value(QStringLiteral("lifecycle_test")).toBool();
     const QString validationMode = input.value(QStringLiteral("validation_mode"))
                                        .toString(QStringLiteral("strict"));
     if (input.value(QStringLiteral("schema_version")).toInt(-1) != 1
@@ -382,6 +383,8 @@ bool validateWineCase(const ProtocolJsonCase &testCase,
     bool sawServerCondition = false;
     bool sawDestroy = false;
     bool sawDisconnect = false;
+    bool sawServerShutdown = false;
+    bool sawLifecycleAction = false;
     bool expectsProtocolError = false;
     const bool disconnectBeforeCompletion = input.value(QStringLiteral("case")).toString()
         .endsWith(QStringLiteral("disconnect-before-completion"));
@@ -452,17 +455,45 @@ bool validateWineCase(const ProtocolJsonCase &testCase,
         } else if (step.contains(QStringLiteral("checkpoint"))) {
             checkpoints.insert(step.value(QStringLiteral("checkpoint")).toString());
         } else if (step.contains(QStringLiteral("destroy"))) {
+            const QString mode = step.value(QStringLiteral("destroy")).toObject()
+                                     .value(QStringLiteral("mode"))
+                                     .toString(QStringLiteral("protocol"));
+            if (mode != QStringLiteral("protocol")
+                && mode != QStringLiteral("proxy-only")) {
+                return fail(error, QStringLiteral("schema_error"),
+                            QStringLiteral("Unknown Wine destroy mode"));
+            }
             sawDestroy = true;
+            sawLifecycleAction = true;
         } else if (step.contains(QStringLiteral("disconnect"))) {
+            const QString mode = step.value(QStringLiteral("disconnect")).toObject()
+                                     .value(QStringLiteral("mode"))
+                                     .toString(QStringLiteral("graceful"));
+            if (mode != QStringLiteral("graceful")
+                && mode != QStringLiteral("abrupt")) {
+                return fail(error, QStringLiteral("schema_error"),
+                            QStringLiteral("Unknown Wine disconnect mode"));
+            }
             sawDisconnect = true;
+            sawLifecycleAction = true;
+        } else if (step.contains(QStringLiteral("server_shutdown"))) {
+            if (!step.value(QStringLiteral("server_shutdown")).toObject().isEmpty()) {
+                return fail(error, QStringLiteral("schema_error"),
+                            QStringLiteral("server_shutdown does not accept arguments"));
+            }
+            sawServerShutdown = true;
+            sawLifecycleAction = true;
         } else {
             return fail(error, QStringLiteral("schema_error"),
                         QStringLiteral("Unsupported Wine operation"));
         }
     }
-    if (!sawRequest || !sawDisconnect || (checkpoints.isEmpty() && expectsProtocolError)
-        || (!disconnectBeforeCompletion && !expectsProtocolError
-            && (!sawServerCondition || !sawDestroy || checkpoints.isEmpty()))) {
+    if (lifecycleTest
+        ? (!sawLifecycleAction || (!sawDisconnect && !sawServerShutdown)
+           || checkpoints.isEmpty() || sawRequest || sawServerCondition)
+        : (!sawRequest || !sawDisconnect || (checkpoints.isEmpty() && expectsProtocolError)
+           || (!disconnectBeforeCompletion && !expectsProtocolError
+               && (!sawServerCondition || !sawDestroy || checkpoints.isEmpty())))) {
         return fail(error, QStringLiteral("schema_error"),
                     QStringLiteral("Wine case lacks request, barrier, checkpoint, destroy, or disconnect"));
     }
@@ -498,6 +529,10 @@ bool validateWineCase(const ProtocolJsonCase &testCase,
                 return fail(error, QStringLiteral("schema_error"),
                             QStringLiteral("Expected protocol error is incomplete"));
             }
+        }
+        if (lifecycleTest && !value.value(QStringLiteral("lifecycle")).isObject()) {
+            return fail(error, QStringLiteral("schema_error"),
+                        QStringLiteral("Lifecycle checkpoint is missing lifecycle state"));
         }
     }
     return expectedCheckpoints.size() == checkpoints.size()

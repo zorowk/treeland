@@ -39,6 +39,14 @@ struct WineClientStepResult
     quint32 protocolErrorObjectId = 0;
     quint32 protocolErrorCode = 0;
     QString protocolErrorObject;
+    bool localDisplayAlive = false;
+    bool localManagerProxyAlive = false;
+    bool localControlProxyAlive = false;
+    bool localSurfaceProxyAlive = false;
+    qsizetype localProxyCount = 0;
+    QString destroyMode = QStringLiteral("none");
+    QString disconnectMode = QStringLiteral("none");
+    bool abruptTransportClosed = false;
 };
 
 Q_DECLARE_METATYPE(WineClientStepResult)
@@ -59,7 +67,10 @@ public Q_SLOTS:
     void sendPosition(qint32 x, qint32 y, quint32 serial);
     void setZOrder(quint32 operation, quint32 siblingId);
     void destroyObjects();
+    void destroyControlProxyOnly();
     void disconnectClient();
+    void disconnectAbruptly();
+    void observeServerShutdown();
 
 Q_SIGNALS:
     void stepFinished(const WineClientStepResult &result);
@@ -71,6 +82,7 @@ private:
                                 const QString &message = {}) const;
     bool roundtrip(WineClientStepResult &result);
     bool createBuffer(const QSize &size, QString &error);
+    void destroyLocalProxies();
     void cleanup();
 
     wl_display *m_display = nullptr;
@@ -91,4 +103,7 @@ private:
     bool m_bufferCommitted = false;
     bool m_controlCreated = false;
     bool m_protocolDestructorSent = false;
+    QString m_destroyMode = QStringLiteral("none");
+    QString m_disconnectMode = QStringLiteral("none");
+    bool m_abruptTransportClosed = false;
 };
