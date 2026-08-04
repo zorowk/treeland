@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "case": "wine-window-management.lifecycle.abrupt-disconnect",
+  "expectation_source": {
+    "generated_by": "codex", "generator": "gpt-5", "based_on": ["intentional-resource-leak-sentinel"],
+    "xml_sha256": "a411c9f8bae3b669b3dd9e378436a70e067fb19ea810ef3c96e9b739aeede095",
+    "server_commit": "afda13a35", "review_status": "candidate"
+  },
+  "checkpoints": {
+    "disconnected": {
+      "connection": { "display_error": 0, "protocol_error_occurred": false }, "client_events": [],
+      "server_state": { "surface.geometry": [0, 0, 300, 200] },
+      "lifecycle": {
+        "destroy_mode": "none", "disconnect_mode": "abrupt", "protocol_destructor_sent": false, "abrupt_transport_closed": true,
+        "local": { "display_alive": false, "manager_proxy_alive": false, "control_proxy_alive": false, "surface_proxy_alive": false, "proxy_count": 0 },
+        "remote": { "control_resource_count": 1, "destroyed_control_resource_count": 0, "client_count": 0, "surface_count": 0, "server_running": true }
+      }
+    }
+  }
+}

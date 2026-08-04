@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "case": "wine-window-management.lifecycle.server-shutdown",
+  "expectation_source": {
+    "generated_by": "codex", "generator": "gpt-5", "based_on": ["server-shutdown", "server-resource-lifecycle"],
+    "xml_sha256": "a411c9f8bae3b669b3dd9e378436a70e067fb19ea810ef3c96e9b739aeede095",
+    "server_commit": "afda13a35", "review_status": "candidate"
+  },
+  "checkpoints": {
+    "server-stopped": {
+      "connection": { "display_error": 32, "protocol_error_occurred": false }, "client_events": [],
+      "server_state": { "surface.geometry": [0, 0, 300, 200] },
+      "lifecycle": {
+        "destroy_mode": "none", "disconnect_mode": "server-shutdown", "protocol_destructor_sent": false, "abrupt_transport_closed": false,
+        "local": { "display_alive": true, "manager_proxy_alive": true, "control_proxy_alive": true, "surface_proxy_alive": true, "proxy_count": 10 },
+        "remote": { "control_resource_count": 0, "destroyed_control_resource_count": 1, "client_count": 0, "surface_count": 0, "server_running": false }
+      }
+    }
+  }
+}

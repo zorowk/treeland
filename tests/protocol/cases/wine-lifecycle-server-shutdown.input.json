@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "case": "wine-window-management.lifecycle.server-shutdown",
+  "lifecycle_test": true,
+  "protocol": { "interface": "treeland_wine_window_manager_v1", "version": 1 },
+  "server": {
+    "outputs": [{ "name": "HEADLESS-1", "geometry": [0, 0, 1280, 720], "scale": 1 }],
+    "disable_animations": true
+  },
+  "client": {
+    "objects": [
+      { "name": "window", "fixture": "xdg_toplevel", "app_id": "test.wine.lifecycle", "size": [300, 200], "mapped": true },
+      { "name": "control", "interface": "treeland_wine_window_control_v1", "for": "$window" }
+    ]
+  },
+  "steps": [
+    { "server_shutdown": {} },
+    { "checkpoint": "server-stopped" }
+  ]
+}

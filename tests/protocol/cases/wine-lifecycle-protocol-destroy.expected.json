@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "case": "wine-window-management.lifecycle.protocol-destroy",
+  "expectation_source": {
+    "generated_by": "codex", "generator": "gpt-5", "based_on": ["xml-destructor-contract", "server-resource-lifecycle"],
+    "xml_sha256": "a411c9f8bae3b669b3dd9e378436a70e067fb19ea810ef3c96e9b739aeede095",
+    "server_commit": "afda13a35", "review_status": "candidate"
+  },
+  "checkpoints": {
+    "destroyed": {
+      "connection": { "display_error": 0, "protocol_error_occurred": false },
+      "client_events": [],
+      "server_state": { "surface.geometry": [0, 0, 300, 200] },
+      "lifecycle": {
+        "destroy_mode": "protocol", "disconnect_mode": "none", "protocol_destructor_sent": true, "abrupt_transport_closed": false,
+        "local": { "display_alive": true, "manager_proxy_alive": false, "control_proxy_alive": false, "surface_proxy_alive": true, "proxy_count": 8 },
+        "remote": { "control_resource_count": 0, "destroyed_control_resource_count": 1, "client_count": 1, "surface_count": 1, "server_running": true }
+      }
+    }
+  }
+}

@@ -359,6 +359,28 @@ set_tests_properties(
     PROPERTIES LABELS "protocol-high;json-runner;protocol-error;mvp-d1-accepted"
 )
 
+function(add_wine_lifecycle_case name)
+    add_test(
+        NAME protocol-wine-window-management-lifecycle-${name}
+        COMMAND treeland-protocol-test-runner
+            --input ${protocol_json_case_directory}/wine-lifecycle-${name}.input.json
+            --expected ${protocol_json_case_directory}/wine-lifecycle-${name}.expected.json
+            --dump-actual
+                ${CMAKE_CURRENT_BINARY_DIR}/test-results/mvp-d2/${name}.actual.json
+            --report-dir ${CMAKE_CURRENT_BINARY_DIR}/test-results/mvp-d2/${name}
+    )
+    set_tests_properties(protocol-wine-window-management-lifecycle-${name} PROPERTIES
+        LABELS "protocol-high;json-runner;abrupt-disconnect;mvp-d2"
+        TIMEOUT 30
+    )
+endfunction()
+
+add_wine_lifecycle_case(protocol-destroy)
+add_wine_lifecycle_case(proxy-only-destroy)
+add_wine_lifecycle_case(graceful-disconnect)
+add_wine_lifecycle_case(abrupt-disconnect)
+add_wine_lifecycle_case(server-shutdown)
+
 add_test(
     NAME protocol-wire-window-management-json
     COMMAND treeland-protocol-test-runner
@@ -469,11 +491,22 @@ add_protocol_json_selftest(
     checkpoint_protocol_error_diff
     -DEXPECTED_CHECKPOINT=invalid-sibling-error
 )
+add_protocol_json_selftest(
+    lifecycle-resource-not-restored
+    ${protocol_json_case_directory}/wine-lifecycle-abrupt-disconnect.input.json
+    ${protocol_json_case_directory}/selftest-wine-lifecycle-resource-not-restored.expected.json
+    checkpoint_lifecycle_diff
+    -DEXPECTED_CHECKPOINT=disconnected
+)
 set_tests_properties(
     protocol-json-runner-protocol-error-strict-validation-selftest
     protocol-json-runner-protocol-error-wrong-code-selftest
     protocol-json-runner-protocol-error-wrong-object-selftest
     PROPERTIES LABELS "protocol-high;json-runner;runner-selftest;protocol-error"
+)
+set_tests_properties(
+    protocol-json-runner-lifecycle-resource-not-restored-selftest
+    PROPERTIES LABELS "protocol-high;json-runner;runner-selftest;abrupt-disconnect;mvp-d2"
 )
 
 add_executable(protocol-json-contract-diff
