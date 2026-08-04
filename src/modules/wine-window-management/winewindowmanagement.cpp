@@ -16,6 +16,7 @@
 #include <qwdisplay.h>
 #include <qwxdgshell.h>
 
+#include <QHash>
 #include <QList>
 
 #include <ranges>
@@ -28,6 +29,8 @@ class WineWindowControl;
 class WineWindowManagerPrivate : public QtWaylandServer::treeland_wine_window_manager_v1
 {
 public:
+    using SessionId = quint64;
+
     explicit WineWindowManagerPrivate(WineWindowManager *q)
         : q(q)
     {
@@ -38,22 +41,25 @@ public:
         return m_global;
     }
 
-    uint32_t nextWindowId()
+    uint32_t nextWindowId(Resource *resource)
     {
-        return ++m_nextId;
+        return ++m_sessions[resource].nextWindowId;
     }
 
-    WineWindowControl *controlForId(uint32_t id) const
+    WineWindowControl *controlForId(SessionId sessionId, uint32_t id) const
     {
         for (const auto &entry : m_controls)
-            if (entry.id == id)
+            if (entry.sessionId == sessionId && entry.id == id)
                 return entry.control;
         return nullptr;
     }
 
-    void registerControl(uint32_t id, WXdgToplevelSurface *toplevel, WineWindowControl *control)
+    void registerControl(SessionId sessionId,
+                         uint32_t id,
+                         WXdgToplevelSurface *toplevel,
+                         WineWindowControl *control)
     {
-        m_controls.append({ id, toplevel, control });
+        m_controls.append({ sessionId, id, toplevel, control });
     }
 
     void removeControl(WineWindowControl *control)
@@ -67,6 +73,16 @@ public:
     }
 
 protected:
+    void bind_resource(Resource *resource) override
+    {
+        m_sessions.insert(resource, { ++m_nextSessionId, 0 });
+    }
+
+    void destroy_resource(Resource *resource) override
+    {
+        m_sessions.remove(resource);
+    }
+
     void destroy_global() override
     {
         qCDebug(lcTlProtocol) << "WineWindowManager global destroyed";
@@ -84,13 +100,21 @@ protected:
 private:
     struct ControlEntry
     {
+        SessionId sessionId;
         uint32_t id;
         WXdgToplevelSurface *toplevel{ nullptr };
         WineWindowControl *control{ nullptr };
     };
 
+    struct Session
+    {
+        SessionId id;
+        uint32_t nextWindowId;
+    };
+
     WineWindowManager *q{ nullptr };
-    uint32_t m_nextId = 0;
+    SessionId m_nextSessionId = 0;
+    QHash<Resource *, Session> m_sessions;
     QList<ControlEntry> m_controls;
 };
 
@@ -101,6 +125,7 @@ class WineWindowControl
 public:
     WineWindowControl(QObject *parent,
                       WineWindowManagerPrivate *manager,
+                      WineWindowManagerPrivate::SessionId sessionId,
                       uint32_t windowId,
                       SurfaceWrapper *wrapper,
                       wl_client *client,
@@ -109,6 +134,7 @@ public:
         : QObject(parent)
         , QtWaylandServer::treeland_wine_window_control_v1(client, id, version)
         , m_manager(manager)
+        , m_sessionId(sessionId)
         , m_windowId(windowId)
         , m_wrapper(wrapper)
         , m_owner(static_cast<WineWindowManager *>(parent))
@@ -296,7 +322,7 @@ private:
         if (!m_manager || !m_wrapper)
             return;
 
-        WineWindowControl *sibling = m_manager->controlForId(siblingId);
+        WineWindowControl *sibling = m_manager->controlForId(m_sessionId, siblingId);
         // If sibling is not found, the request has no effect (e.g. the
         // sibling window was destroyed before this message arrived).
         if (!sibling || !sibling->wrapper())
@@ -348,6 +374,7 @@ private:
 
 private:
     WineWindowManagerPrivate *m_manager = nullptr;
+    WineWindowManagerPrivate::SessionId m_sessionId = 0;
     uint32_t m_windowId = 0;
     SurfaceWrapper *m_wrapper = nullptr;
     WineWindowManager *m_owner = nullptr;
@@ -391,15 +418,19 @@ void WineWindowManagerPrivate::get_window_control(Resource *resource,
         return;
     }
 
-    uint32_t windowId = nextWindowId();
+    const auto session = m_sessions.constFind(resource);
+    Q_ASSERT(session != m_sessions.cend());
+    const SessionId sessionId = session->id;
+    uint32_t windowId = nextWindowId(resource);
     auto *control = new WineWindowControl(q,
                                           this,
+                                          sessionId,
                                           windowId,
                                           wrapper,
                                           resource->client(),
                                           resource->version(),
                                           id);
-    registerControl(windowId, xdgToplevel, control);
+    registerControl(sessionId, windowId, xdgToplevel, control);
 
     qCDebug(lcTlProtocol) << "Created WineWindowControl for toplevel, window_id =" << windowId;
 }
