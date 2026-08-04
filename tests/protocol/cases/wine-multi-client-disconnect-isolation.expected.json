@@ -4,7 +4,7 @@
   "expectation_source": {
     "generated_by": "codex", "generator": "gpt-5", "based_on": ["manager-binding-session", "per-client-event-and-resource-isolation"],
     "xml_sha256": "a411c9f8bae3b669b3dd9e378436a70e067fb19ea810ef3c96e9b739aeede095",
-    "server_commit": "772802c6c", "review_status": "candidate"
+    "server_commit": "772802c6c", "review_status": "human-reviewed"
   },
   "checkpoints": {
     "client-1-operated": {

@@ -1,8 +1,8 @@
 # Treeland Wayland Protocol Test Implementation Status
 
 Current stage: MVP-D3
-State: awaiting_human_validation
-Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2]
+State: accepted
+Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2, MVP-D3]
 
 Stage commits:
 - `772802c6c1baf9eb40cae5a28449e46bef950095` fix(protocol): isolate Wine controls by manager binding
@@ -32,11 +32,11 @@ cmake --build build-feat-testprotocol \
   -j8
 
 ctest --test-dir build-feat-testprotocol \
-  -L mvp-d3 \
+  -L mvp-d3-accepted \
   --output-on-failure
 
 ctest --test-dir build-feat-testprotocol \
-  -L mvp-d3 \
+  -L mvp-d3-accepted \
   --repeat until-fail:20 \
   --output-on-failure
 
@@ -52,15 +52,15 @@ cmake --build build-feat-testprotocol-asan \
 ASAN_OPTIONS=detect_leaks=1:halt_on_error=1:detect_odr_violation=0 \
 LSAN_OPTIONS=exitcode=23:suppressions="$PWD/tests/protocol/lsan-suppressions.txt" \
 ctest --test-dir build-feat-testprotocol-asan \
-  -L mvp-d3 \
+  -L mvp-d3-accepted \
   --output-on-failure
 ```
 
-Human validation: pending
+Human validation: passed
 
 Known issues:
 - MVP-D3 只处理多客户端隔离，不实现 fd/array/fixed、event `new_id` 或 malicious wire。
-- MVP-D3 正向 expected 在人工验收前保持 `candidate`；wrong-attribution self-test 应继续保持
+- MVP-D3 正向 expected 已随人工验收更新为 `human-reviewed`；wrong-attribution self-test 继续保持
   `candidate`。
 - 受控沙箱不允许 Unix socket `bind()`，真实 Wayland 测试需要在获准的非沙箱环境运行。
 - ASan 构建阶段使用 `detect_leaks=0`，因为 instrumented QtWayland 代码生成器在受控环境下不能
@@ -70,4 +70,4 @@ Known issues:
 - LSan suppressions 仅覆盖现有 Waylib/QML fixture wrapper 循环；WineWindowControl 和
   WineWindowManager 未被抑制，并由远端 control resource 的 `1 -> 0` 硬断言独立验证。
 
-Next authorized action: human-validate MVP-D3; MVP-D4 has not started
+Next authorized action: start MVP-D4 only when explicitly requested; preserve all PoC 0A through MVP-D3 regressions

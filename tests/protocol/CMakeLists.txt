@@ -394,7 +394,7 @@ function(add_wine_multi_client_case name)
             --report-dir ${CMAKE_CURRENT_BINARY_DIR}/test-results/mvp-d3/${name}
     )
     set_tests_properties(protocol-wine-window-management-multi-client-${name} PROPERTIES
-        LABELS "protocol-high;json-runner;multi-client;mvp-d3"
+        LABELS "protocol-high;json-runner;multi-client;mvp-d3-accepted"
         TIMEOUT 40
     )
 endfunction()
@@ -538,7 +538,7 @@ set_tests_properties(
 )
 set_tests_properties(
     protocol-json-runner-multi-client-wrong-attribution-selftest
-    PROPERTIES LABELS "protocol-high;json-runner;runner-selftest;multi-client;mvp-d3"
+    PROPERTIES LABELS "protocol-high;json-runner;runner-selftest;multi-client;mvp-d3-accepted"
         TIMEOUT 40
 )
 
