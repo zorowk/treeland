@@ -188,6 +188,63 @@ set_tests_properties(protocol-fixed-adapter-selftest PROPERTIES
     LABELS "protocol-wire;generated-adapter;mvp-d4a-accepted"
     TIMEOUT 10
 )
+
+set(array_test_xml ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/treeland-test-array-v1.xml)
+set(array_generated_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-test-array-v1)
+set(array_client_header
+    ${array_generated_directory}/wayland-treeland-test-array-v1-client-protocol.h)
+set(array_client_code
+    ${array_generated_directory}/wayland-treeland-test-array-v1-client-protocol.c)
+set(array_server_header
+    ${array_generated_directory}/wayland-treeland-test-array-v1-server-protocol.h)
+set(array_adapter_header ${array_generated_directory}/tl-test-treeland-test-array-v1.h)
+set(array_adapter_code ${array_generated_directory}/tl-test-treeland-test-array-v1.c)
+set(array_adapter_metadata
+    ${array_generated_directory}/tl-test-treeland-test-array-v1-metadata.json)
+
+add_custom_command(
+    OUTPUT
+        ${array_client_header}
+        ${array_client_code}
+        ${array_server_header}
+        ${array_adapter_header}
+        ${array_adapter_code}
+        ${array_adapter_metadata}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${array_generated_directory}
+    COMMAND ${WAYLAND_SCANNER} client-header ${array_test_xml} ${array_client_header}
+    COMMAND ${WAYLAND_SCANNER} private-code ${array_test_xml} ${array_client_code}
+    COMMAND ${WAYLAND_SCANNER} server-header ${array_test_xml} ${array_server_header}
+    COMMAND qtwaylandscanner_treeland test-client-header ${array_test_xml}
+        > ${array_adapter_header}
+    COMMAND qtwaylandscanner_treeland test-client-code ${array_test_xml}
+        > ${array_adapter_code}
+    COMMAND qtwaylandscanner_treeland test-client-metadata ${array_test_xml}
+        > ${array_adapter_metadata}
+    DEPENDS ${array_test_xml} qtwaylandscanner_treeland
+    VERBATIM
+)
+
+add_executable(protocol-array-adapter-selftest
+    arrayadapterselftest.cpp
+    protocolarrayvalue.cpp
+    protocolarrayvalue.h
+    ${array_client_header}
+    ${array_client_code}
+    ${array_server_header}
+    ${array_adapter_header}
+    ${array_adapter_code}
+)
+target_include_directories(protocol-array-adapter-selftest PRIVATE ${array_generated_directory})
+target_compile_definitions(protocol-array-adapter-selftest
+    PRIVATE TL_ARRAY_TEST_METADATA="${array_adapter_metadata}")
+target_link_libraries(protocol-array-adapter-selftest
+    PRIVATE Qt6::Test PkgConfig::WAYLAND_CLIENT PkgConfig::WAYLAND_SERVER)
+
+add_test(NAME protocol-array-adapter-selftest COMMAND protocol-array-adapter-selftest)
+set_tests_properties(protocol-array-adapter-selftest PROPERTIES
+    LABELS "protocol-wire;generated-adapter;mvp-d4b"
+    TIMEOUT 10
+)
 set_tests_properties(protocol-window-management-generated-adapter-output PROPERTIES
     LABELS "protocol-scanner;generated-adapter"
     TIMEOUT 10

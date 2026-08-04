@@ -509,6 +509,8 @@ void Scanner::printTestClientHeader(const std::vector<WaylandInterface> &interfa
     printf("enum { %s = 8 };\n\n", maxEvents.constData());
     printf("struct %s_fixed_event {\n", adapter.constData());
     printf("    const char *name;\n    wl_fixed_t raw;\n};\n\n");
+    printf("struct %s_array_event {\n", adapter.constData());
+    printf("    const char *name;\n    uint8_t *data;\n    size_t size;\n};\n\n");
     printf("struct %s_adapter {\n", adapter.constData());
     printf("    struct %s *proxy;\n", target->name.constData());
     printf("    uint32_t global_name;\n    uint32_t advertised_version;\n");
@@ -518,8 +520,12 @@ void Scanner::printTestClientHeader(const std::vector<WaylandInterface> &interfa
     printf("    struct %s_fixed_event fixed_events[%s];\n",
            adapter.constData(), maxEvents.constData());
     printf("    size_t fixed_event_count;\n");
+    printf("    struct %s_array_event array_events[%s];\n",
+           adapter.constData(), maxEvents.constData());
+    printf("    size_t array_event_count;\n    bool event_snapshot_failed;\n");
     printf("    bool protocol_destructor_sent;\n};\n\n");
     printf("void %s_adapter_init(struct %s_adapter *adapter);\n", adapter.constData(), adapter.constData());
+    printf("void %s_adapter_fini(struct %s_adapter *adapter);\n", adapter.constData(), adapter.constData());
     printf("const struct wl_registry_listener *%s_registry_listener(void);\n", adapter.constData());
     printf("int %s_bind(struct %s_adapter *adapter, struct wl_registry *registry, "
            "uint32_t requested_version);\n", adapter.constData(), adapter.constData());
@@ -552,7 +558,7 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
     const QByteArray basename = QByteArray(m_protocolName).replace('_', '-');
     printf("#include \"tl-test-%s.h\"\n", basename.constData());
     printf("#include \"wayland-%s-client-protocol.h\"\n\n", basename.constData());
-    printf("#include <string.h>\n#include <wayland-client.h>\n\n");
+    printf("#include <stdlib.h>\n#include <string.h>\n#include <wayland-client.h>\n\n");
 
     for (const WaylandEvent &event : target->events) {
         printf("static void handle_%s(void *data, struct %s *proxy",
@@ -575,6 +581,33 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
                    "        event->raw = %s;\n"
                    "    }\n",
                    maxEvents.constData(), adapter.constData(), event.name.constData(),
+                   event.arguments.front().name.constData());
+        else if (event.arguments.size() == 1 && event.arguments.front().type == "array")
+            printf("    if (!%s || (%s->size > 0 && !%s->data) || "
+                   "adapter->array_event_count >= %s) {\n"
+                   "        adapter->event_snapshot_failed = true;\n"
+                   "        return;\n"
+                   "    }\n"
+                   "    struct %s_array_event *event = "
+                   "&adapter->array_events[adapter->array_event_count];\n"
+                   "    if (%s->size > 0) {\n"
+                   "        event->data = malloc(%s->size);\n"
+                   "        if (!event->data) {\n"
+                   "            adapter->event_snapshot_failed = true;\n"
+                   "            return;\n"
+                   "        }\n"
+                   "        memcpy(event->data, %s->data, %s->size);\n"
+                   "    }\n"
+                   "    event->name = \"%s\";\n"
+                   "    event->size = %s->size;\n"
+                   "    adapter->array_event_count++;\n",
+                   event.arguments.front().name.constData(),
+                   event.arguments.front().name.constData(),
+                   event.arguments.front().name.constData(), maxEvents.constData(),
+                   adapter.constData(), event.arguments.front().name.constData(),
+                   event.arguments.front().name.constData(),
+                   event.arguments.front().name.constData(),
+                   event.arguments.front().name.constData(), event.name.constData(),
                    event.arguments.front().name.constData());
         else {
             for (const WaylandArgument &argument : event.arguments)
@@ -600,6 +633,9 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
            "    .global = handle_global,\n    .global_remove = handle_global_remove,\n};\n\n");
     printf("void %s_adapter_init(struct %s_adapter *adapter)\n{\n    memset(adapter, 0, sizeof(*adapter));\n}\n\n",
            adapter.constData(), adapter.constData());
+    printf("void %s_adapter_fini(struct %s_adapter *adapter)\n{\n"
+           "    %s_clear_events(adapter);\n}\n\n",
+           adapter.constData(), adapter.constData(), adapter.constData());
     printf("const struct wl_registry_listener *%s_registry_listener(void)\n{\n"
            "    return &registry_listener;\n}\n\n", adapter.constData());
     printf("int %s_bind(struct %s_adapter *adapter, struct wl_registry *registry, uint32_t requested_version)\n{\n",
@@ -615,7 +651,15 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
            "#endif\n    adapter->local_proxy_alive = true;\n    return 0;\n}\n\n",
            target->name.constData(), target->name.constData());
     printf("void %s_clear_events(struct %s_adapter *adapter)\n{\n"
-           "    adapter->event_count = 0;\n    adapter->fixed_event_count = 0;\n}\n",
+           "    for (size_t i = 0; i < adapter->array_event_count; ++i) {\n"
+           "        free(adapter->array_events[i].data);\n"
+           "        adapter->array_events[i].data = NULL;\n"
+           "        adapter->array_events[i].size = 0;\n"
+           "    }\n"
+           "    adapter->event_count = 0;\n"
+           "    adapter->fixed_event_count = 0;\n"
+           "    adapter->array_event_count = 0;\n"
+           "    adapter->event_snapshot_failed = false;\n}\n",
            adapter.constData(), adapter.constData());
 
     for (const WaylandEvent &request : target->requests) {
@@ -625,6 +669,10 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
             printf(", %s%s%s", type.constData(), type.endsWith('*') ? "" : " ", argument.name.constData());
         }
         printf(")\n{\n    if (!adapter->proxy || !adapter->local_proxy_alive)\n        return -1;\n");
+        for (const WaylandArgument &argument : request.arguments) {
+            if (argument.type == "array" && !argument.allowNull)
+                printf("    if (!%s)\n        return -1;\n", argument.name.constData());
+        }
         printf("    %s_%s(adapter->proxy", target->name.constData(), request.name.constData());
         for (const WaylandArgument &argument : request.arguments)
             printf(", %s", argument.name.constData());

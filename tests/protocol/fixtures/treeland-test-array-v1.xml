@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 OR LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only -->
+<protocol name="treeland_test_array_v1">
+  <interface name="treeland_test_array_v1" version="1">
+    <description summary="array argument protocol test fixture">
+      Exercises byte-exact Wayland array request and event transport.
+    </description>
+    <request name="echo">
+      <arg name="value" type="array"/>
+    </request>
+    <request name="destroy" type="destructor"/>
+    <event name="value">
+      <arg name="value" type="array"/>
+    </event>
+  </interface>
+</protocol>
