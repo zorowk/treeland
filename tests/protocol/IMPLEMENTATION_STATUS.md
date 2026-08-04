@@ -1,15 +1,30 @@
 # Treeland Wayland Protocol Test Implementation Status
 
-Current stage: MVP-D4a (fixed)
-State: accepted
+Current stage: MVP-D4b (array)
+State: awaiting_human_validation
 Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2, MVP-D3, MVP-D4a]
 
 Stage commits:
+- `2dc4e99d710af993a0aed864a82f46e47e8a1fe0` test(protocol): cover array adapter values
 - `428ee429f0ed01d1e4d3135b0b14f6c90c4cab05` test(protocol): cover fixed adapter values
 - `772802c6c1baf9eb40cae5a28449e46bef950095` fix(protocol): isolate Wine controls by manager binding
 - `d6792442d243106604950e585fde6d4970c64000` test(protocol): exercise Wine multi-client isolation
 
 Automated validation:
+- D4b 使用 `{ "bytes": [0, 255] }` 作为 Wayland array 的唯一 JSON 表示，元素语义明确为
+  byte；空数组和二进制数据可精确往返，null、裸数组、浮点、负数、溢出、字符串和额外字段均被拒绝：通过。
+- scanner 生成 array request wrapper、metadata 和 event listener；listener 在 callback 返回前
+  `malloc`/`memcpy` 深拷贝，`clear_events`/`adapter_fini` 释放 snapshot，不保留 `wl_array`
+  临时内存：通过。
+- 独立 socketpair 上的真实 Wayland request/event wire echo 覆盖空数组、内嵌零字节和 1 KiB
+  边界值；发送后修改 request backing storage 不影响 event snapshot：通过。
+- 非 nullable array 的 null request、protocol destructor 后 request、event 容量溢出均产生可观察的
+  adapter validation failure，clear 后失败状态和 snapshot 均复位：通过。
+- `ctest --test-dir build-feat-testprotocol -L mvp-d4b --repeat until-fail:20
+  --output-on-failure`：连续 20 次通过。
+- PoC 0A 至 MVP-D3 加 D4a/D4b 完整协议回归：39/39 通过。
+- ASan/LSan 下 `ctest --test-dir build-feat-testprotocol-asan -L mvp-d4b
+  --output-on-failure`：1/1 通过，无 sanitizer error 或 leak。
 - D4a 使用 `{ "raw": int32 }` 作为 Wayland signed 24.8 fixed 的唯一 JSON 表示；整数、负数、
   `INT32_MIN` 和 `INT32_MAX` 可精确往返，null、浮点 raw、越界值和额外字段均被拒绝：通过。
 - scanner 从测试 XML 生成 `wl_fixed_t` request wrapper、fixed metadata 和 event listener；listener
@@ -41,15 +56,15 @@ Automated validation:
 Manual validation command:
 ```bash
 cmake --build build-feat-testprotocol \
-  --target protocol-fixed-adapter-selftest \
+  --target protocol-array-adapter-selftest \
   -j8
 
 ctest --test-dir build-feat-testprotocol \
-  -L mvp-d4a-accepted \
+  -L mvp-d4b \
   --output-on-failure
 
 ctest --test-dir build-feat-testprotocol \
-  -L mvp-d4a-accepted \
+  -L mvp-d4b \
   --repeat until-fail:20 \
   --output-on-failure
 
@@ -67,27 +82,28 @@ ctest --test-dir build-feat-testprotocol \
   --output-on-failure
 
 ctest --test-dir build-feat-testprotocol \
-  -R 'protocol-(fixed-adapter-selftest|(wire|high)-window-management|window-management-(generated-adapter-output|adapter-contract|json-contract|json-repeatable)|json-runner|wine-window-management)' \
+  -R 'protocol-((array|fixed)-adapter-selftest|(wire|high)-window-management|window-management-(generated-adapter-output|adapter-contract|json-contract|json-repeatable)|json-runner|wine-window-management)' \
   --output-on-failure
 
 ASAN_OPTIONS=detect_leaks=0 \
 cmake --build build-feat-testprotocol-asan \
-  --target protocol-fixed-adapter-selftest \
+  --target protocol-array-adapter-selftest \
   -j8
 
 ASAN_OPTIONS=detect_leaks=1:halt_on_error=1:detect_odr_violation=0 \
 LSAN_OPTIONS=exitcode=23:suppressions="$PWD/tests/protocol/lsan-suppressions.txt" \
 ctest --test-dir build-feat-testprotocol-asan \
-  -L mvp-d4a-accepted \
+  -L mvp-d4b \
   --output-on-failure
 ```
 
-Human validation: passed
+Human validation: pending for MVP-D4b; MVP-D4a passed
 
 Known issues:
-- MVP-D4a 只实现 fixed；array、fd、event `new_id` 和 malicious wire 仍未实现。
-- fixed 是无动态资源的 scalar owning snapshot；释放规则为按值销毁，不分配、不借用 callback
-  临时内存。array 和 fd 必须在各自子阶段另行定义深拷贝/关闭规则。
+- MVP-D4b 已实现 array；fd、event `new_id` 和 malicious wire 仍未实现。
+- array event snapshot 独立拥有 callback 内复制的 byte buffer，由 `clear_events` 或
+  `adapter_fini` 释放；request 的 `wl_array` 只在同步 marshal 调用期间借用 owning
+  `QByteArray`。fd 必须在 D4c 另行定义 `dup()`/关闭规则。
 - MVP-D3 正向 expected 已随人工验收更新为 `human-reviewed`；wrong-attribution self-test 继续保持
   `candidate`。
 - 受控沙箱不允许 Unix socket `bind()`，真实 Wayland 测试需要在获准的非沙箱环境运行。
@@ -98,4 +114,4 @@ Known issues:
 - LSan suppressions 仅覆盖现有 Waylib/QML fixture wrapper 循环；WineWindowControl 和
   WineWindowManager 未被抑制，并由远端 control resource 的 `1 -> 0` 硬断言独立验证。
 
-Next authorized action: start MVP-D4b array only when explicitly requested; preserve all PoC 0A through MVP-D4a regressions
+Next authorized action: accept MVP-D4b only after explicit human validation; do not start MVP-D4c yet
