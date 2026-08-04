@@ -111,11 +111,13 @@ public:
         , m_manager(manager)
         , m_windowId(windowId)
         , m_wrapper(wrapper)
+        , m_owner(static_cast<WineWindowManager *>(parent))
     {
         Q_ASSERT_X(m_wrapper, Q_FUNC_INFO, "wrapper must not be null");
         Q_ASSERT_X(m_wrapper->shellSurface(),
                    Q_FUNC_INFO,
                    "wrapper->shellSurface() must not be null");
+        m_owner->handleControlResourceCreated();
 
         connect(m_wrapper, &SurfaceWrapper::aboutToBeInvalidated, this, [this] {
             if (m_manager) {
@@ -160,6 +162,10 @@ protected:
 
     void destroy_resource([[maybe_unused]] Resource *resource) override
     {
+        if (m_owner) {
+            m_owner->handleControlResourceDestroyed();
+            m_owner = nullptr;
+        }
         if (m_manager) {
             m_manager->removeControl(this);
             m_manager = nullptr;
@@ -344,6 +350,7 @@ private:
     WineWindowManagerPrivate *m_manager = nullptr;
     uint32_t m_windowId = 0;
     SurfaceWrapper *m_wrapper = nullptr;
+    WineWindowManager *m_owner = nullptr;
     bool m_suppressPositionEvents = false;
 };
 
@@ -408,6 +415,32 @@ WineWindowManager::WineWindowManager(QObject *parent)
 }
 
 WineWindowManager::~WineWindowManager() = default;
+
+qsizetype WineWindowManager::activeControlResourceCount() const
+{
+    return m_activeControlResourceCount;
+}
+
+quint64 WineWindowManager::destroyedControlResourceCount() const
+{
+    return m_destroyedControlResourceCount;
+}
+
+void WineWindowManager::handleControlResourceCreated()
+{
+    ++m_activeControlResourceCount;
+    Q_EMIT controlResourceCountChanged(m_activeControlResourceCount,
+                                       m_destroyedControlResourceCount);
+}
+
+void WineWindowManager::handleControlResourceDestroyed()
+{
+    Q_ASSERT(m_activeControlResourceCount > 0);
+    --m_activeControlResourceCount;
+    ++m_destroyedControlResourceCount;
+    Q_EMIT controlResourceCountChanged(m_activeControlResourceCount,
+                                       m_destroyedControlResourceCount);
+}
 
 void WineWindowManager::create(WServer *server)
 {

@@ -12,6 +12,7 @@
 #include <memory>
 
 class WineWindowManagerPrivate;
+class WineWindowControl;
 
 class WineWindowManager
     : public QObject
@@ -23,6 +24,12 @@ public:
     ~WineWindowManager() override;
     static constexpr int InterfaceVersion = 1;
 
+    [[nodiscard]] qsizetype activeControlResourceCount() const;
+    [[nodiscard]] quint64 destroyedControlResourceCount() const;
+
+Q_SIGNALS:
+    void controlResourceCountChanged(qsizetype active, quint64 destroyed);
+
 protected:
     void create(WAYLIB_SERVER_NAMESPACE::WServer *server) override;
     void destroy(WAYLIB_SERVER_NAMESPACE::WServer *server) override;
@@ -30,5 +37,11 @@ protected:
     QByteArrayView interfaceName() const override;
 
 private:
+    friend class WineWindowControl;
+    void handleControlResourceCreated();
+    void handleControlResourceDestroyed();
+
     std::unique_ptr<WineWindowManagerPrivate> d;
+    qsizetype m_activeControlResourceCount = 0;
+    quint64 m_destroyedControlResourceCount = 0;
 };
