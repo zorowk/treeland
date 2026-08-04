@@ -356,7 +356,7 @@ add_wine_position_case(
 )
 set_tests_properties(
     protocol-wine-window-management-protocol-error-invalid-sibling
-    PROPERTIES LABELS "protocol-high;json-runner;protocol-error"
+    PROPERTIES LABELS "protocol-high;json-runner;protocol-error;mvp-d1-accepted"
 )
 
 add_test(

@@ -1,8 +1,8 @@
 # Treeland Wayland Protocol Test Implementation Status
 
 Current stage: MVP-D1
-State: awaiting_human_validation
-Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3]
+State: accepted
+Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1]
 
 Stage commits:
 - `931cff4c0ee73da91acc413af1cf3a9e15fed3ca` test(protocol): support expected Wayland protocol errors
@@ -46,7 +46,7 @@ ctest --test-dir build-feat-testprotocol \
   --output-on-failure
 ```
 
-Human validation: pending
+Human validation: passed
 
 Known issues:
 - MVP-D1 只覆盖可由合法生成 C API 表达的 Wine `invalid_sibling` protocol error；不发送
@@ -55,7 +55,8 @@ Known issues:
   和越界 `z_order_op` 仍在 marshal 前拒绝。
 - symbolic object name 是基于客户端对象表的 best-effort 映射；actual 始终保留动态 object ID，
   映射失败时名称允许为空。
-- 正向 expected 仍为 `candidate`，需人工核对 actual 后才能更新为 `human-reviewed`。
+- MVP-D1 正向 expected 已随人工验收更新为 `human-reviewed`；故障检测 self-test 的
+  故意错误 expected 继续保持 `candidate`。
 - 受控沙箱不允许 Unix socket `bind()`，真实 wire 测试需要在获准的非沙箱环境运行。
 
-Next authorized action: run and report MVP-D1 manual validation; do not start MVP-D2 until MVP-D1 is accepted
+Next authorized action: start MVP-D2 when explicitly requested; preserve all PoC 0A through MVP-D1 regressions

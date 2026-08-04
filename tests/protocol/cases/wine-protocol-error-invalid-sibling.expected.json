@@ -7,7 +7,7 @@
     "based_on": ["xml-error-contract", "server-post-error-path"],
     "xml_sha256": "a411c9f8bae3b669b3dd9e378436a70e067fb19ea810ef3c96e9b739aeede095",
     "server_commit": "c79617591cffb6bd52904fa63fcd45e2c1b79d0d",
-    "review_status": "candidate"
+    "review_status": "human-reviewed"
   },
   "checkpoints": {
     "invalid-sibling-error": {
