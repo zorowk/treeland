@@ -1,28 +1,32 @@
 # Treeland Wayland Protocol Test Implementation Status
 
-Current stage: MVP-D1
-State: accepted
+Current stage: MVP-D2
+State: awaiting_human_validation
 Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1]
 
 Stage commits:
-- `931cff4c0ee73da91acc413af1cf3a9e15fed3ca` test(protocol): support expected Wayland protocol errors
-- `681bd57eb5bda81bbdb9545b603885ac6d13aef4` test(protocol): exercise Wine invalid-sibling protocol error
+- `48e8e9b23bc8f288a97206d29be477f8785761ba` test(protocol): expose Wine control resource lifecycle
+- `e96bf3bb8d70512a8aa392a0760de2b122756e38` test(protocol): model Wine lifecycle teardown modes
+- `f8107de3a2f84d0c04de0d7ebe3fa87f4eb06e35` test(protocol): cover Wine lifecycle cleanup matrix
 
 Automated validation:
-- `strict` validation 在 marshal 前以 `adapter_validation_error` 拒绝
-  `set_z_order(hwnd_top, sibling_id=1)`：通过。
-- `wire` validation 保留对象、request、参数类型和 enum 范围校验，仅允许上述安全语义错误
-  到达正式 `WineWindowControl::set_z_order()`：通过。
-- 真实 Wayland protocol error 记录 `treeland_wine_window_control_v1` interface、动态
-  object ID、error code `0`、symbolic object `control` 和 display error `EPROTO`：通过。
-- expected matcher 验证 protocol error；错误 code 和错误 symbolic object self-test 均以
-  `checkpoint_protocol_error_diff` 和目标 checkpoint 失败：通过。
-- protocol error 后不发送 protocol destructor，本地 proxy、display、client 和 surface
-  安全清理并恢复资源基线：通过。
-- `ctest --test-dir build-feat-testprotocol -L protocol-error --output-on-failure`：4/4 通过。
+- protocol destroy、proxy-only destroy、graceful disconnect、abrupt disconnect 和 server
+  shutdown 五种模式均产生可区分的生命周期 checkpoint：通过。
+- lifecycle report 分别记录客户端本地 proxy/display 状态与服务端
+  client/surface/control-resource 状态：通过。
+- proxy-only destroy 仅销毁本地 proxy，checkpoint 中远端 control resource 仍存活；连接断开后
+  `destroy_resource` 计数增加且资源恢复基线：通过。
+- abrupt disconnect 在关闭 transport 前保留远端 resource，不发送 protocol destructor；服务端通过
+  条件等待观察正式最终清理：通过。
+- server shutdown 在客户端 proxy 仍存活时观察 display failure，随后 runner 完成显式 teardown：通过。
+- resource-not-restored self-test 使用故意错误的最终资源计数并在目标 checkpoint 失败：通过。
+- `ctest --test-dir build-feat-testprotocol -L mvp-d2 --output-on-failure`：6/6 通过。
 - `ctest --test-dir build-feat-testprotocol -R
   'protocol-(wire|high)-window-management|protocol-window-management-(generated-adapter-output|adapter-contract|json-contract|json-repeatable)|protocol-json-runner|protocol-wine-window-management'
-  --output-on-failure`：28/28 通过。
+  --output-on-failure`：34/34 通过。
+- ASan/LSan 构建运行
+  `ctest --test-dir build-feat-testprotocol-asan -L abrupt-disconnect --output-on-failure`：
+  6/6 通过，无未抑制的 lifecycle error 或 leak。
 
 Manual validation command:
 ```bash
@@ -30,33 +34,43 @@ cmake --build build-feat-testprotocol \
   --target treeland-protocol-test-runner \
   -j8
 
-./build-feat-testprotocol/tests/protocol/treeland-protocol-test-runner \
-  --input tests/protocol/cases/wine-protocol-error-invalid-sibling.input.json \
-  --expected tests/protocol/cases/wine-protocol-error-invalid-sibling.expected.json \
-  --dump-actual build-feat-testprotocol/test-results/mvp-d1/invalid-sibling.actual.json \
-  --report-dir build-feat-testprotocol/test-results/mvp-d1/invalid-sibling \
-  --verbose
-
 ctest --test-dir build-feat-testprotocol \
-  -L protocol-error \
+  -L mvp-d2 \
   --output-on-failure
 
 ctest --test-dir build-feat-testprotocol \
   -R 'protocol-(wire|high)-window-management|protocol-window-management-(generated-adapter-output|adapter-contract|json-contract|json-repeatable)|protocol-json-runner|protocol-wine-window-management' \
   --output-on-failure
+
+cmake -S . -B build-feat-testprotocol-asan -G Ninja \
+  -DBUILD_TESTING=ON \
+  -DADDRESS_SANITIZER=ON \
+  -DWITH_SUBMODULE_WAYLIB=ON
+
+ASAN_OPTIONS=detect_leaks=0 \
+cmake --build build-feat-testprotocol-asan \
+  --target treeland-protocol-test-runner \
+  -j8
+
+ASAN_OPTIONS=detect_leaks=1:halt_on_error=1:detect_odr_violation=0 \
+LSAN_OPTIONS=exitcode=23:suppressions="$PWD/tests/protocol/lsan-suppressions.txt" \
+ctest --test-dir build-feat-testprotocol-asan \
+  -L abrupt-disconnect \
+  --output-on-failure
 ```
 
-Human validation: passed
+Human validation: pending
 
 Known issues:
-- MVP-D1 只覆盖可由合法生成 C API 表达的 Wine `invalid_sibling` protocol error；不发送
-  畸形 opcode，不伪造 signature，也不实现 malicious client。
-- `wire` 目前只绕过 `set_z_order` 的 sibling 语义约束；未知 request、错误对象、错误参数类型
-  和越界 `z_order_op` 仍在 marshal 前拒绝。
-- symbolic object name 是基于客户端对象表的 best-effort 映射；actual 始终保留动态 object ID，
-  映射失败时名称允许为空。
-- MVP-D1 正向 expected 已随人工验收更新为 `human-reviewed`；故障检测 self-test 的
-  故意错误 expected 继续保持 `candidate`。
-- 受控沙箱不允许 Unix socket `bind()`，真实 wire 测试需要在获准的非沙箱环境运行。
+- MVP-D2 不实现多客户端隔离、malicious wire 或 MVP-D3 行为。
+- MVP-D2 正向 expected provenance 仍为 `candidate`，等待人工审阅后再标记
+  `human-reviewed`；故障检测 self-test 应继续保持 `candidate`。
+- 受控沙箱不允许 Unix socket `bind()`，真实 Wayland 测试需要在获准的非沙箱环境运行。
+- ASan 构建阶段使用 `detect_leaks=0`，因为 instrumented QtWayland 代码生成器在受控环境下不能
+  启动 LSan；最终测试阶段重新启用 LSan。
+- 最终 ASan 运行禁用 `detect_odr_violation`，因为 waylib 与 treeland 都链接了生成的
+  `xdg_popup_interface`；否则测试在进入生命周期逻辑前终止。
+- LSan suppressions 仅覆盖现有 Waylib/QML fixture wrapper 循环；WineWindowControl 和
+  WineWindowManager 未被抑制，并由远端 control resource 的 `1 -> 0` 硬断言独立验证。
 
-Next authorized action: start MVP-D2 when explicitly requested; preserve all PoC 0A through MVP-D1 regressions
+Next authorized action: human-validate MVP-D2; MVP-D3 has not started
