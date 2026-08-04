@@ -1,6 +1,7 @@
 find_package(Qt6 REQUIRED COMPONENTS Test)
 find_package(TreelandProtocols REQUIRED)
 pkg_search_module(WAYLAND_CLIENT REQUIRED IMPORTED_TARGET wayland-client)
+pkg_search_module(WAYLAND_SERVER REQUIRED IMPORTED_TARGET wayland-server)
 pkg_get_variable(WAYLAND_SCANNER wayland-scanner wayland_scanner)
 
 set(window_management_xml
@@ -129,6 +130,63 @@ add_test(
         -DPROTOCOL_XML=${window_management_xml}
         -DOUTPUT_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}/scanner-selftest
         -P ${CMAKE_CURRENT_SOURCE_DIR}/verify-generated-adapter.cmake
+)
+
+set(fixed_test_xml ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/treeland-test-fixed-v1.xml)
+set(fixed_generated_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-test-fixed-v1)
+set(fixed_client_header
+    ${fixed_generated_directory}/wayland-treeland-test-fixed-v1-client-protocol.h)
+set(fixed_client_code
+    ${fixed_generated_directory}/wayland-treeland-test-fixed-v1-client-protocol.c)
+set(fixed_server_header
+    ${fixed_generated_directory}/wayland-treeland-test-fixed-v1-server-protocol.h)
+set(fixed_adapter_header ${fixed_generated_directory}/tl-test-treeland-test-fixed-v1.h)
+set(fixed_adapter_code ${fixed_generated_directory}/tl-test-treeland-test-fixed-v1.c)
+set(fixed_adapter_metadata
+    ${fixed_generated_directory}/tl-test-treeland-test-fixed-v1-metadata.json)
+
+add_custom_command(
+    OUTPUT
+        ${fixed_client_header}
+        ${fixed_client_code}
+        ${fixed_server_header}
+        ${fixed_adapter_header}
+        ${fixed_adapter_code}
+        ${fixed_adapter_metadata}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${fixed_generated_directory}
+    COMMAND ${WAYLAND_SCANNER} client-header ${fixed_test_xml} ${fixed_client_header}
+    COMMAND ${WAYLAND_SCANNER} private-code ${fixed_test_xml} ${fixed_client_code}
+    COMMAND ${WAYLAND_SCANNER} server-header ${fixed_test_xml} ${fixed_server_header}
+    COMMAND qtwaylandscanner_treeland test-client-header ${fixed_test_xml}
+        > ${fixed_adapter_header}
+    COMMAND qtwaylandscanner_treeland test-client-code ${fixed_test_xml}
+        > ${fixed_adapter_code}
+    COMMAND qtwaylandscanner_treeland test-client-metadata ${fixed_test_xml}
+        > ${fixed_adapter_metadata}
+    DEPENDS ${fixed_test_xml} qtwaylandscanner_treeland
+    VERBATIM
+)
+
+add_executable(protocol-fixed-adapter-selftest
+    fixedadapterselftest.cpp
+    protocolfixedvalue.cpp
+    protocolfixedvalue.h
+    ${fixed_client_header}
+    ${fixed_client_code}
+    ${fixed_server_header}
+    ${fixed_adapter_header}
+    ${fixed_adapter_code}
+)
+target_include_directories(protocol-fixed-adapter-selftest PRIVATE ${fixed_generated_directory})
+target_compile_definitions(protocol-fixed-adapter-selftest
+    PRIVATE TL_FIXED_TEST_METADATA="${fixed_adapter_metadata}")
+target_link_libraries(protocol-fixed-adapter-selftest
+    PRIVATE Qt6::Test PkgConfig::WAYLAND_CLIENT PkgConfig::WAYLAND_SERVER)
+
+add_test(NAME protocol-fixed-adapter-selftest COMMAND protocol-fixed-adapter-selftest)
+set_tests_properties(protocol-fixed-adapter-selftest PROPERTIES
+    LABELS "protocol-wire;generated-adapter;mvp-d4a"
+    TIMEOUT 10
 )
 set_tests_properties(protocol-window-management-generated-adapter-output PROPERTIES
     LABELS "protocol-scanner;generated-adapter"

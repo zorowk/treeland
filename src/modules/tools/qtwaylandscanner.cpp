@@ -500,17 +500,24 @@ void Scanner::printTestClientHeader(const std::vector<WaylandInterface> &interfa
     const QByteArray adapter = testAdapterName(target->name);
     const QByteArray guard = (adapter + "_TEST_ADAPTER_H").toUpper();
     printf("#ifndef %s\n#define %s\n\n", guard.constData(), guard.constData());
-    printf("#include <stdbool.h>\n#include <stddef.h>\n#include <stdint.h>\n\n");
+    printf("#include <stdbool.h>\n#include <stddef.h>\n#include <stdint.h>\n");
+    printf("#include <wayland-util.h>\n\n");
     printf("struct wl_registry;\nstruct wl_registry_listener;\nstruct %s;\n\n",
            target->name.constData());
     printf("#ifdef __cplusplus\nextern \"C\" {\n#endif\n\n");
-    printf("enum { TL_WINDOW_MANAGEMENT_MAX_EVENTS = 8 };\n\n");
+    const QByteArray maxEvents = (adapter + "_MAX_EVENTS").toUpper();
+    printf("enum { %s = 8 };\n\n", maxEvents.constData());
+    printf("struct %s_fixed_event {\n", adapter.constData());
+    printf("    const char *name;\n    wl_fixed_t raw;\n};\n\n");
     printf("struct %s_adapter {\n", adapter.constData());
     printf("    struct %s *proxy;\n", target->name.constData());
     printf("    uint32_t global_name;\n    uint32_t advertised_version;\n");
     printf("    uint32_t bound_version;\n");
-    printf("    uint32_t events[TL_WINDOW_MANAGEMENT_MAX_EVENTS];\n");
+    printf("    uint32_t events[%s];\n", maxEvents.constData());
     printf("    size_t event_count;\n    bool local_proxy_alive;\n");
+    printf("    struct %s_fixed_event fixed_events[%s];\n",
+           adapter.constData(), maxEvents.constData());
+    printf("    size_t fixed_event_count;\n");
     printf("    bool protocol_destructor_sent;\n};\n\n");
     printf("void %s_adapter_init(struct %s_adapter *adapter);\n", adapter.constData(), adapter.constData());
     printf("const struct wl_registry_listener *%s_registry_listener(void);\n", adapter.constData());
@@ -541,6 +548,7 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
         return;
 
     const QByteArray adapter = testAdapterName(target->name);
+    const QByteArray maxEvents = (adapter + "_MAX_EVENTS").toUpper();
     const QByteArray basename = QByteArray(m_protocolName).replace('_', '-');
     printf("#include \"tl-test-%s.h\"\n", basename.constData());
     printf("#include \"wayland-%s-client-protocol.h\"\n\n", basename.constData());
@@ -555,8 +563,18 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
         }
         printf(")\n{\n    struct %s_adapter *adapter = data;\n    (void)proxy;\n", adapter.constData());
         if (event.arguments.size() == 1 && event.arguments.front().type == "uint")
-            printf("    if (adapter->event_count < TL_WINDOW_MANAGEMENT_MAX_EVENTS)\n"
+            printf("    if (adapter->event_count < %s)\n"
                    "        adapter->events[adapter->event_count++] = %s;\n",
+                   maxEvents.constData(),
+                   event.arguments.front().name.constData());
+        else if (event.arguments.size() == 1 && event.arguments.front().type == "fixed")
+            printf("    if (adapter->fixed_event_count < %s) {\n"
+                   "        struct %s_fixed_event *event = "
+                   "&adapter->fixed_events[adapter->fixed_event_count++];\n"
+                   "        event->name = \"%s\";\n"
+                   "        event->raw = %s;\n"
+                   "    }\n",
+                   maxEvents.constData(), adapter.constData(), event.name.constData(),
                    event.arguments.front().name.constData());
         else {
             for (const WaylandArgument &argument : event.arguments)
@@ -596,7 +614,8 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
            "        wl_proxy_destroy((struct wl_proxy *)adapter->proxy);\n        adapter->proxy = NULL;\n        return -1;\n    }\n"
            "#endif\n    adapter->local_proxy_alive = true;\n    return 0;\n}\n\n",
            target->name.constData(), target->name.constData());
-    printf("void %s_clear_events(struct %s_adapter *adapter)\n{\n    adapter->event_count = 0;\n}\n",
+    printf("void %s_clear_events(struct %s_adapter *adapter)\n{\n"
+           "    adapter->event_count = 0;\n    adapter->fixed_event_count = 0;\n}\n",
            adapter.constData(), adapter.constData());
 
     for (const WaylandEvent &request : target->requests) {
