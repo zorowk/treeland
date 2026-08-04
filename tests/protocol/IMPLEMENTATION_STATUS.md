@@ -1,8 +1,8 @@
 # Treeland Wayland Protocol Test Implementation Status
 
 Current stage: MVP-D2
-State: awaiting_human_validation
-Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1]
+State: accepted
+Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2]
 
 Stage commits:
 - `48e8e9b23bc8f288a97206d29be477f8785761ba` test(protocol): expose Wine control resource lifecycle
@@ -30,12 +30,10 @@ Automated validation:
 
 Manual validation command:
 ```bash
-cmake --build build-feat-testprotocol \
-  --target treeland-protocol-test-runner \
-  -j8
+cmake --build build-feat-testprotocol -j8
 
 ctest --test-dir build-feat-testprotocol \
-  -L mvp-d2 \
+  -L mvp-d2-accepted \
   --output-on-failure
 
 ctest --test-dir build-feat-testprotocol \
@@ -43,7 +41,6 @@ ctest --test-dir build-feat-testprotocol \
   --output-on-failure
 
 cmake -S . -B build-feat-testprotocol-asan -G Ninja \
-  -DBUILD_TESTING=ON \
   -DADDRESS_SANITIZER=ON \
   -DWITH_SUBMODULE_WAYLIB=ON
 
@@ -59,12 +56,12 @@ ctest --test-dir build-feat-testprotocol-asan \
   --output-on-failure
 ```
 
-Human validation: pending
+Human validation: passed
 
 Known issues:
 - MVP-D2 不实现多客户端隔离、malicious wire 或 MVP-D3 行为。
-- MVP-D2 正向 expected provenance 仍为 `candidate`，等待人工审阅后再标记
-  `human-reviewed`；故障检测 self-test 应继续保持 `candidate`。
+- MVP-D2 正向 expected provenance 已随人工验收更新为 `human-reviewed`；故障检测
+  resource-not-restored self-test 继续保持 `candidate`。
 - 受控沙箱不允许 Unix socket `bind()`，真实 Wayland 测试需要在获准的非沙箱环境运行。
 - ASan 构建阶段使用 `detect_leaks=0`，因为 instrumented QtWayland 代码生成器在受控环境下不能
   启动 LSan；最终测试阶段重新启用 LSan。
@@ -73,4 +70,4 @@ Known issues:
 - LSan suppressions 仅覆盖现有 Waylib/QML fixture wrapper 循环；WineWindowControl 和
   WineWindowManager 未被抑制，并由远端 control resource 的 `1 -> 0` 硬断言独立验证。
 
-Next authorized action: human-validate MVP-D2; MVP-D3 has not started
+Next authorized action: start MVP-D3 only when explicitly requested; preserve all PoC 0A through MVP-D2 regressions

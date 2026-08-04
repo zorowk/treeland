@@ -370,7 +370,7 @@ function(add_wine_lifecycle_case name)
             --report-dir ${CMAKE_CURRENT_BINARY_DIR}/test-results/mvp-d2/${name}
     )
     set_tests_properties(protocol-wine-window-management-lifecycle-${name} PROPERTIES
-        LABELS "protocol-high;json-runner;abrupt-disconnect;mvp-d2"
+        LABELS "protocol-high;json-runner;abrupt-disconnect;mvp-d2-accepted"
         TIMEOUT 30
     )
 endfunction()
@@ -506,7 +506,7 @@ set_tests_properties(
 )
 set_tests_properties(
     protocol-json-runner-lifecycle-resource-not-restored-selftest
-    PROPERTIES LABELS "protocol-high;json-runner;runner-selftest;abrupt-disconnect;mvp-d2"
+    PROPERTIES LABELS "protocol-high;json-runner;runner-selftest;abrupt-disconnect;mvp-d2-accepted"
 )
 
 add_executable(protocol-json-contract-diff
