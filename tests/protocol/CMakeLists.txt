@@ -242,7 +242,7 @@ target_link_libraries(protocol-array-adapter-selftest
 
 add_test(NAME protocol-array-adapter-selftest COMMAND protocol-array-adapter-selftest)
 set_tests_properties(protocol-array-adapter-selftest PROPERTIES
-    LABELS "protocol-wire;generated-adapter;mvp-d4b"
+    LABELS "protocol-wire;generated-adapter;mvp-d4b-accepted"
     TIMEOUT 10
 )
 set_tests_properties(protocol-window-management-generated-adapter-output PROPERTIES

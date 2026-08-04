@@ -1,8 +1,8 @@
 # Treeland Wayland Protocol Test Implementation Status
 
 Current stage: MVP-D4b (array)
-State: awaiting_human_validation
-Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2, MVP-D3, MVP-D4a]
+State: accepted
+Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2, MVP-D3, MVP-D4a, MVP-D4b]
 
 Stage commits:
 - `2dc4e99d710af993a0aed864a82f46e47e8a1fe0` test(protocol): cover array adapter values
@@ -20,10 +20,10 @@ Automated validation:
   边界值；发送后修改 request backing storage 不影响 event snapshot：通过。
 - 非 nullable array 的 null request、protocol destructor 后 request、event 容量溢出均产生可观察的
   adapter validation failure，clear 后失败状态和 snapshot 均复位：通过。
-- `ctest --test-dir build-feat-testprotocol -L mvp-d4b --repeat until-fail:20
+- `ctest --test-dir build-feat-testprotocol -L mvp-d4b-accepted --repeat until-fail:20
   --output-on-failure`：连续 20 次通过。
 - PoC 0A 至 MVP-D3 加 D4a/D4b 完整协议回归：39/39 通过。
-- ASan/LSan 下 `ctest --test-dir build-feat-testprotocol-asan -L mvp-d4b
+- ASan/LSan 下 `ctest --test-dir build-feat-testprotocol-asan -L mvp-d4b-accepted
   --output-on-failure`：1/1 通过，无 sanitizer error 或 leak。
 - D4a 使用 `{ "raw": int32 }` 作为 Wayland signed 24.8 fixed 的唯一 JSON 表示；整数、负数、
   `INT32_MIN` 和 `INT32_MAX` 可精确往返，null、浮点 raw、越界值和额外字段均被拒绝：通过。
@@ -60,11 +60,11 @@ cmake --build build-feat-testprotocol \
   -j8
 
 ctest --test-dir build-feat-testprotocol \
-  -L mvp-d4b \
+  -L mvp-d4b-accepted \
   --output-on-failure
 
 ctest --test-dir build-feat-testprotocol \
-  -L mvp-d4b \
+  -L mvp-d4b-accepted \
   --repeat until-fail:20 \
   --output-on-failure
 
@@ -93,11 +93,11 @@ cmake --build build-feat-testprotocol-asan \
 ASAN_OPTIONS=detect_leaks=1:halt_on_error=1:detect_odr_violation=0 \
 LSAN_OPTIONS=exitcode=23:suppressions="$PWD/tests/protocol/lsan-suppressions.txt" \
 ctest --test-dir build-feat-testprotocol-asan \
-  -L mvp-d4b \
+  -L mvp-d4b-accepted \
   --output-on-failure
 ```
 
-Human validation: pending for MVP-D4b; MVP-D4a passed
+Human validation: passed
 
 Known issues:
 - MVP-D4b 已实现 array；fd、event `new_id` 和 malicious wire 仍未实现。
@@ -114,4 +114,4 @@ Known issues:
 - LSan suppressions 仅覆盖现有 Waylib/QML fixture wrapper 循环；WineWindowControl 和
   WineWindowManager 未被抑制，并由远端 control resource 的 `1 -> 0` 硬断言独立验证。
 
-Next authorized action: accept MVP-D4b only after explicit human validation; do not start MVP-D4c yet
+Next authorized action: start MVP-D4c fd only when explicitly requested; preserve all PoC 0A through MVP-D4b regressions
