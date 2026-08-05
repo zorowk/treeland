@@ -1,8 +1,8 @@
 # Treeland Wayland Protocol Test Implementation Status
 
 Current stage: MVP-D4f (object + request new_id)
-State: awaiting_human_validation
-Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2, MVP-D3, MVP-D4a, MVP-D4b, MVP-D4c, MVP-D4d, MVP-D4e]
+State: accepted
+Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2, MVP-D3, MVP-D4a, MVP-D4b, MVP-D4c, MVP-D4d, MVP-D4e, MVP-D4f]
 
 Stage commits (D4e and prior):
 - `acffbdb2e` test(protocol): accept MVP-D4e multi-arg event generalization stage
@@ -45,7 +45,7 @@ ctest --test-dir build-feat-testprotocol \
   --output-on-failure
 ```
 
-Human validation: pending
+Human validation: passed
 
 Known issues:
 - D4f 已实现 object 类型和 request new_id；但 request new_id 创建的 child proxy 未
