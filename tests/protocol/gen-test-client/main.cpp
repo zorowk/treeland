@@ -141,7 +141,8 @@ void generateClient(const Interface &iface, const std::string &basename, FILE *o
             else if (a.type == "int")
                 fprintf(out, "        int32_t a_%s=(int32_t)strtol(argv[%d],NULL,10);\n", a.name.c_str(), i);
             else if (a.type == "string")
-                fprintf(out, "        const char *a_%s=argv[%d];\n", a.name.c_str(), i);
+                fprintf(out, "        const char *a_%s = (argv[%d][0]=='-'&&argv[%d][1]=='\\0') ? NULL : argv[%d];\n  // -- as arg means null\n",
+                       a.name.c_str(), i, i, i);
         }
         fprintf(out, "        %s_%s(p", iface.name.c_str(), req.name.c_str());
         for (const auto &a : req.arguments)

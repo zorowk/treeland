@@ -445,7 +445,6 @@ set_tests_properties(protocol-global-version-selftest PROPERTIES
     TIMEOUT 10
 )
 
-
 set(obj_newid_test_xml ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/treeland-test-object-newid-v1.xml)
 set(obj_newid_generated_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-test-object-newid-v1)
 set(obj_newid_client_header
@@ -458,7 +457,6 @@ set(obj_newid_adapter_header ${obj_newid_generated_directory}/tl-test-treeland-t
 set(obj_newid_adapter_code ${obj_newid_generated_directory}/tl-test-treeland-test-object-newid-v1.c)
 set(obj_newid_adapter_metadata
     ${obj_newid_generated_directory}/tl-test-treeland-test-object-newid-v1-metadata.json)
-
 add_custom_command(
     OUTPUT
         ${obj_newid_client_header}
@@ -480,7 +478,6 @@ add_custom_command(
     DEPENDS ${obj_newid_test_xml} qtwaylandscanner_treeland
     VERBATIM
 )
-
 add_executable(protocol-object-newid-adapter-selftest
     objectnewidadapterselftest.cpp
     ${obj_newid_client_header}
@@ -494,7 +491,6 @@ target_compile_definitions(protocol-object-newid-adapter-selftest
     PRIVATE TL_OBJECT_NEWID_TEST_METADATA="${obj_newid_adapter_metadata}")
 target_link_libraries(protocol-object-newid-adapter-selftest
     PRIVATE Qt6::Test PkgConfig::WAYLAND_CLIENT PkgConfig::WAYLAND_SERVER)
-
 add_test(NAME protocol-object-newid-adapter-selftest COMMAND protocol-object-newid-adapter-selftest)
 set_tests_properties(protocol-object-newid-adapter-selftest PROPERTIES
     LABELS "protocol-wire;generated-adapter;mvp-d4f"
@@ -504,7 +500,6 @@ set_tests_properties(protocol-window-management-generated-adapter-output PROPERT
     LABELS "protocol-scanner;generated-adapter"
     TIMEOUT 10
 )
-
 add_library(protocol-window-management-client-runtime STATIC
     clientruntime.cpp
     clientruntime.h
@@ -523,7 +518,6 @@ target_link_libraries(protocol-window-management-client-runtime
         Qt6::Core
         PkgConfig::WAYLAND_CLIENT
 )
-
 function(add_generated_client_runtime target)
     add_library(${target} STATIC
         clientruntime.cpp
@@ -549,27 +543,23 @@ function(add_generated_client_runtime target)
             PkgConfig::WAYLAND_CLIENT
     )
 endfunction()
-
 add_generated_client_runtime(protocol-window-management-generated-client-runtime)
 add_generated_client_runtime(
     protocol-window-management-generated-missing-listener-client-runtime
     TL_TEST_ADAPTER_DISABLE_LISTENER
 )
-
 execute_process(
     COMMAND git rev-parse --short=12 HEAD
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     OUTPUT_VARIABLE protocol_test_git_commit
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
-
 set(protocol_wire_common_sources
     main.cpp
     wirescenario.cpp
     wirescenario.h
     ${CMAKE_BINARY_DIR}/src/modules/window-management/qwayland-server-treeland-window-management-v1.cpp
 )
-
 function(add_protocol_wire_test target runtime)
     add_executable(${target} ${protocol_wire_common_sources})
     target_link_libraries(${target}
@@ -585,7 +575,6 @@ function(add_protocol_wire_test target runtime)
             TL_PROTOCOL_TEST_DEFAULT_REPORT_DIR="${CMAKE_CURRENT_BINARY_DIR}/test-results/${target}"
     )
 endfunction()
-
 add_protocol_wire_test(
     test-protocol-window-management-wire
     protocol-window-management-client-runtime
@@ -602,7 +591,6 @@ add_protocol_wire_test(
     test-protocol-window-management-wire-generated-missing-listener
     protocol-window-management-generated-missing-listener-client-runtime
 )
-
 add_executable(treeland-protocol-test-runner
     protocoljsoncase.cpp
     protocoljsoncase.h
@@ -634,16 +622,13 @@ target_compile_definitions(treeland-protocol-test-runner
         TL_WINE_PROTOCOL_TEST_XML="${wine_window_management_xml}"
         TL_PROTOCOL_TEST_DEFAULT_REPORT_DIR="${CMAKE_CURRENT_BINARY_DIR}/test-results/json-runner"
 )
-
 target_compile_definitions(test-protocol-window-management-wire-wrong-expected
     PRIVATE TL_PROTOCOL_TEST_WRONG_EXPECTED
 )
-
 add_test(
     NAME protocol-wire-window-management
     COMMAND test-protocol-window-management-wire
 )
-
 add_test(
     NAME protocol-wire-window-management-generated
     COMMAND test-protocol-window-management-wire-generated
@@ -653,7 +638,6 @@ set_tests_properties(protocol-wire-window-management-generated PROPERTIES
     LABELS "protocol-wire;generated-adapter"
     TIMEOUT 10
 )
-
 add_test(
     NAME protocol-wire-window-management-generated-missing-listener-selftest
     COMMAND ${CMAKE_COMMAND}
@@ -671,7 +655,6 @@ set_tests_properties(protocol-wire-window-management PROPERTIES
     LABELS "protocol-wire"
     TIMEOUT 10
 )
-
 add_test(
     NAME protocol-wire-window-management-wrong-expected-selftest
     COMMAND ${CMAKE_COMMAND}
@@ -684,7 +667,6 @@ set_tests_properties(protocol-wire-window-management-wrong-expected-selftest PRO
     LABELS "protocol-wire;runner-selftest"
     TIMEOUT 10
 )
-
 set(protocol_json_case_directory ${CMAKE_CURRENT_SOURCE_DIR}/cases)
 set(protocol_json_good_input
     ${protocol_json_case_directory}/window-management-show.input.json
@@ -692,7 +674,6 @@ set(protocol_json_good_input
 set(protocol_json_good_expected
     ${protocol_json_case_directory}/window-management-show.expected.json
 )
-
 function(add_wine_position_case name input expected)
     add_test(
         NAME protocol-wine-window-management-${name}
@@ -708,7 +689,6 @@ function(add_wine_position_case name input expected)
         TIMEOUT 30
     )
 endfunction()
-
 add_wine_position_case(
     set-position
     wine-set-position.input.json
@@ -724,7 +704,6 @@ add_wine_position_case(
     wine-disconnect-before-completion.input.json
     wine-disconnect-before-completion.expected.json
 )
-
 add_wine_position_case(
     protocol-error-invalid-sibling
     wine-protocol-error-invalid-sibling.input.json
@@ -734,7 +713,6 @@ set_tests_properties(
     protocol-wine-window-management-protocol-error-invalid-sibling
     PROPERTIES LABELS "protocol-high;json-runner;protocol-error;mvp-d1-accepted"
 )
-
 function(add_wine_lifecycle_case name)
     add_test(
         NAME protocol-wine-window-management-lifecycle-${name}
@@ -750,13 +728,11 @@ function(add_wine_lifecycle_case name)
         TIMEOUT 30
     )
 endfunction()
-
 add_wine_lifecycle_case(protocol-destroy)
 add_wine_lifecycle_case(proxy-only-destroy)
 add_wine_lifecycle_case(graceful-disconnect)
 add_wine_lifecycle_case(abrupt-disconnect)
 add_wine_lifecycle_case(server-shutdown)
-
 function(add_wine_multi_client_case name)
     add_test(
         NAME protocol-wine-window-management-multi-client-${name}
@@ -772,10 +748,8 @@ function(add_wine_multi_client_case name)
         TIMEOUT 40
     )
 endfunction()
-
 add_wine_multi_client_case(disconnect-isolation)
 add_wine_multi_client_case(protocol-error-isolation)
-
 add_test(
     NAME protocol-wire-window-management-json
     COMMAND treeland-protocol-test-runner
@@ -789,7 +763,6 @@ set_tests_properties(protocol-wire-window-management-json PROPERTIES
     LABELS "protocol-wire;json-runner"
     TIMEOUT 10
 )
-
 function(add_protocol_json_selftest name input expected category)
     add_test(
         NAME protocol-json-runner-${name}-selftest
@@ -808,7 +781,6 @@ function(add_protocol_json_selftest name input expected category)
         TIMEOUT 10
     )
 endfunction()
-
 add_protocol_json_selftest(
     invalid-schema
     ${protocol_json_case_directory}/selftest-invalid-schema.input.json
@@ -915,12 +887,10 @@ set_tests_properties(
     PROPERTIES LABELS "protocol-high;json-runner;runner-selftest;multi-client;mvp-d3-accepted"
         TIMEOUT 40
 )
-
 add_executable(protocol-json-contract-diff
     protocoljsoncontractdiff.cpp
 )
 target_link_libraries(protocol-json-contract-diff PRIVATE Qt6::Core)
-
 add_test(
     NAME protocol-window-management-json-contract
     COMMAND ${CMAKE_COMMAND}
@@ -937,7 +907,6 @@ set_tests_properties(protocol-window-management-json-contract PROPERTIES
     LABELS "protocol-wire;generated-adapter;json-runner;contract-diff"
     TIMEOUT 20
 )
-
 add_test(
     NAME protocol-window-management-json-repeatable
     COMMAND ${CMAKE_COMMAND}
@@ -952,13 +921,11 @@ set_tests_properties(protocol-window-management-json-repeatable PROPERTIES
     LABELS "protocol-wire;json-runner;contract-diff"
     TIMEOUT 20
 )
-
 set(protocol_high_common_sources
     helpermain.cpp
     helperscenario.cpp
     helperscenario.h
 )
-
 function(add_protocol_high_test target runtime)
     add_executable(${target} ${protocol_high_common_sources})
     target_link_libraries(${target}
@@ -972,7 +939,6 @@ function(add_protocol_high_test target runtime)
             TL_PROTOCOL_TEST_DEFAULT_REPORT_DIR="${CMAKE_CURRENT_BINARY_DIR}/test-results/${target}"
     )
 endfunction()
-
 add_protocol_high_test(
     test-protocol-window-management-helper
     protocol-window-management-client-runtime
@@ -985,11 +951,9 @@ add_protocol_high_test(
     test-protocol-window-management-helper-generated
     protocol-window-management-generated-client-runtime
 )
-
 target_compile_definitions(test-protocol-window-management-helper-wrong-expected
     PRIVATE TL_PROTOCOL_TEST_WRONG_HELPER_EXPECTED
 )
-
 add_test(
     NAME protocol-high-window-management-helper
     COMMAND test-protocol-window-management-helper
@@ -999,7 +963,6 @@ set_tests_properties(protocol-high-window-management-helper PROPERTIES
     LABELS "protocol-high"
     TIMEOUT 30
 )
-
 add_test(
     NAME protocol-high-window-management-helper-generated
     COMMAND test-protocol-window-management-helper-generated
@@ -1009,7 +972,6 @@ set_tests_properties(protocol-high-window-management-helper-generated PROPERTIES
     LABELS "protocol-high;generated-adapter"
     TIMEOUT 30
 )
-
 add_test(
     NAME protocol-high-window-management-helper-wrong-expected-selftest
     COMMAND ${CMAKE_COMMAND}
@@ -1022,12 +984,10 @@ set_tests_properties(protocol-high-window-management-helper-wrong-expected-selft
     LABELS "protocol-high;runner-selftest"
     TIMEOUT 30
 )
-
 add_executable(protocol-adapter-contract-diff
     protocoladaptercontractdiff.cpp
 )
 target_link_libraries(protocol-adapter-contract-diff PRIVATE Qt6::Core)
-
 add_test(
     NAME protocol-window-management-adapter-contract
     COMMAND ${CMAKE_COMMAND}
@@ -1045,3 +1005,50 @@ set_tests_properties(protocol-window-management-adapter-contract PROPERTIES
     TIMEOUT 30
 )
 add_subdirectory(gen-test-client)
+set(migrated_client_src ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/tl-test-multi-arg-gen.c)
+set(migrated_client_bin ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/test-multi-arg-gen)
+
+add_custom_command(
+    OUTPUT ${migrated_client_src}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output
+    COMMAND gen-test-client ${multi_arg_test_xml} ${migrated_client_src}
+    DEPENDS gen-test-client ${multi_arg_test_xml}
+    VERBATIM
+)
+
+add_executable(test-multi-arg-gen-client
+    ${migrated_client_src}
+    ${multi_arg_client_code}
+)
+target_include_directories(test-multi-arg-gen-client PRIVATE ${multi_arg_generated_directory})
+target_link_libraries(test-multi-arg-gen-client PRIVATE PkgConfig::WAYLAND_CLIENT)
+set_target_properties(test-multi-arg-gen-client PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output)
+
+
+# Echo server binary for E2E tests
+add_executable(gen-test-echo-server
+    echoserver.c
+    ${multi_arg_client_code}
+)
+target_include_directories(gen-test-echo-server PRIVATE ${multi_arg_generated_directory})
+target_link_libraries(gen-test-echo-server PRIVATE PkgConfig::WAYLAND_SERVER)
+
+# E2E test: spawn echo server + generated client
+add_executable(protocol-gen-client-e2e
+    genclientmigrationtest.cpp
+)
+target_include_directories(protocol-gen-client-e2e PRIVATE ${multi_arg_generated_directory})
+target_compile_definitions(protocol-gen-client-e2e PRIVATE
+    TL_GENERATED_CLIENT_PATH="${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/test-multi-arg-gen-client"
+    TL_ECHO_SERVER_PATH="${CMAKE_CURRENT_BINARY_DIR}/gen-test-echo-server"
+)
+target_link_libraries(protocol-gen-client-e2e
+    PRIVATE Qt6::Test PkgConfig::WAYLAND_SERVER ${multi_arg_client_code}
+)
+
+add_dependencies(protocol-gen-client-e2e test-multi-arg-gen-client gen-test-echo-server)
+add_test(NAME protocol-gen-client-e2e COMMAND protocol-gen-client-e2e)
+set_tests_properties(protocol-gen-client-e2e PROPERTIES
+    LABELS "protocol-wire;gen-client"
+    TIMEOUT 15
+)
