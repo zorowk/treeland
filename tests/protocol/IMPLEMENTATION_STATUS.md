@@ -1,59 +1,66 @@
 # Treeland Wayland Protocol Test Implementation Status
 
-Current stage: MVP-D4e (multi-arg event generalization)
-State: accepted
+Current stage: MVP-D4f (object + request new_id)
+State: awaiting_human_validation
 Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2, MVP-D3, MVP-D4a, MVP-D4b, MVP-D4c, MVP-D4d, MVP-D4e]
 
-Stage commits (D4d and prior):
-- `64dbceb65` test(protocol): accept MVP-D4d event new_id stage
-- `52ee7a2a8` test(protocol): cover event new_id adapter values
-- `2bdf40a30` test(protocol): accept MVP-D4c fd stage
+Stage commits (D4e and prior):
+- `acffbdb2e` test(protocol): accept MVP-D4e multi-arg event generalization stage
+- `34408968b` docs(protocol): hand off MVP-D4e validation
+- `b05a1b885` test(protocol): cover multi-arg event generalization with int/string/enum
 
-Automated validation (D4e):
-- scanner 为 treeland-test-multi-arg-v1 协议生成 per-event struct
-  `tl_test_multi_arg_reply_event { uint32_t id; int32_t offset; char *name; }`；
-  adapter 中生成 `reply_events[]` / `reply_event_count`：通过。
-- event handler 按值复制 uint/int 字段，strdup string 字段；null string 存 NULL：通过。
-- `clear_events` 释放所有 per-event string 字段后重置 counter：通过。
-- scanner 检测 `needsPerEventStructs`（多参数或 int/string 类型）后启用 per-event 模式；
-  单参数旧类型协议（fixed/array/fd/new_id）不受影响：42/42 全量回归通过。
-- metadata 输出包含 interface.enums 数组，含 enum name 和 entry map：通过。
-- 修复上游扫描器 `allow-null` XML 属性名（`allowNull` → `allow-null`），JSON metadata
-  `allow_null` 字段现在正确反映 XML 声明：通过。
-- null string (allow-null="true")、string ownership clear 后独立、capacity overflow、
-  dead-target rejection 全部通过：8/8 自测通过。
-- `ctest --test-dir build-feat-testprotocol -L mvp-d4e --repeat until-fail:20
+Automated validation (D4f):
+- scanner 为所有协议 interface 生成 forward-declare（非仅 event new_id children）：通过。
+- `selectTargetInterface` 选择有 events 的 interface（非第一个），修复 prelaunch-splash/
+  screensaver 等多 interface 无 event 协议的 target 选择：通过。
+- request wrapper 对 `new_id` 参数跳过参数列表并捕获 wayland-scanner 返回的 proxy，
+  不将 new_id 传给底层函数：通过。
+- 无 event 接口不生成 listener struct 和 add_listener 调用：通过。
+- D4f 自测协议（treeland-test-object-newid-v1）覆盖 request new_id + event new_id +
+  object 参数 metadata：5/5 通过。
+- 全部 treeland 私有协议（21 个）scanner 生成 + C 语法编译通过率：19/21 (90%)。
+  剩余 2 个 wine `unstable` 协议因 XML 协议名不含 `unstable` 后缀导致 include 路径
+  不匹配——非扫描器问题，属于协议命名约定。
+- PoC 0A 至 MVP-D4e 加 D4f 完整协议回归：43/43 通过。
+- `ctest --test-dir build-feat-testprotocol -L mvp-d4f --repeat until-fail:20
   --output-on-failure`：连续 20 次通过。
-- PoC 0A 至 MVP-D4d 加 D4e 完整协议回归：42/42 通过。
-- ASan/LSan：1/1 通过，无 sanitizer error 或 leak。
 
 Manual validation command:
 ```bash
 cmake --build build-feat-testprotocol \
-  --target protocol-multi-arg-adapter-selftest \
+  --target protocol-object-newid-adapter-selftest \
   -j8
 
 ctest --test-dir build-feat-testprotocol \
-  -L mvp-d4e \
+  -L mvp-d4f \
   --output-on-failure
 
 ctest --test-dir build-feat-testprotocol \
-  -L mvp-d4e \
+  -L mvp-d4f \
   --repeat until-fail:20 \
   --output-on-failure
 
 ctest --test-dir build-feat-testprotocol \
-  -R 'protocol-((array|fixed|fd|new-id|multi-arg)-adapter-selftest|(wire|high)-window-management|window-management-(generated-adapter-output|adapter-contract|json-contract|json-repeatable)|json-runner|wine-window-management)' \
+  -R 'protocol-((array|fixed|fd|new-id|multi-arg|object-newid)-adapter-selftest|(wire|high)-window-management|window-management-(generated-adapter-output|adapter-contract|json-contract|json-repeatable)|json-runner|wine-window-management)' \
   --output-on-failure
 ```
 
-Human validation: passed
-Known issues:
-- D4e 已实现多参数 event 和 int/string/enum 类型支持；object 类型和 request new_id 仍未实现。
-- 旧按类型分桶的数组（fixed_events, array_events 等）仍保留在 adapter struct 中，
-  但 per-event handler 不填充它们；仅由前序协议的旧 handler 使用。
-- string 字段使用 strdup，由 `clear_events` 统一释放；不跨线程共享。
-- 修复了上游扫描器 `allow-null` 属性名 bug，影响范围仅限单字符属性名修正。
-- D4e 仅覆盖 `protocol-wire` 层自测；未接入 JSON runner。
+Human validation: pending
 
-Next authorized action: start MVP-D4f object + request new_id when explicitly requested; preserve all PoC 0A through MVP-D4e regressions
+Known issues:
+- D4f 已实现 object 类型和 request new_id；但 request new_id 创建的 child proxy 未
+  自动安装 listener（仅 event new_id 会安装）。
+- 无 event 协议（prelaunch-splash、screensaver）跳过 listener 安装，可通过 bind 但
+  无事件捕获。
+- wine `unstable` 协议（2 个）因 XML 协议名与文件名不一致导致 include 路径错误，
+  需单独修复命名约定。
+- D4f 仅覆盖 `protocol-wire` 层自测；未接入 JSON runner。
+
+Batch protocol compile results (19/21 = 90%):
+  OK: app-id-resolver, capture, dde-shell, ddm, foreign-toplevel, input-manager,
+      keyboard-state-notify, output-manager, personalization, prelaunch-splash-v1/v2,
+      screensaver, shortcut-manager-v1/v2, virtual-output, wallpaper-color,
+      wallpaper-manager, wallpaper-shell, window-management
+  FAIL: wine-window-management-unstable, wine-window-state-unstable (naming)
+
+Next authorized action: start MVP-D4g JSON runner full type integration when explicitly requested; preserve all PoC 0A through MVP-D4f regressions
