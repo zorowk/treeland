@@ -2,7 +2,6 @@
 
 #include "protocoljsonscenario.h"
 
-#include "clientruntime.h"
 #include "tl-test-treeland-test-multi-arg-v1.h"
 #include "wayland-treeland-test-multi-arg-v1-client-protocol.h"
 #include "wayland-treeland-test-multi-arg-v1-server-protocol.h"
@@ -13,43 +12,17 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QSaveFile>
-#include <QThread>
 
+#include <cstdlib>
 #include <cstring>
 #include <sys/socket.h>
+#include <thread>
 #include <wayland-client.h>
 #include <wayland-server.h>
 
+// ---- Echo server implementation (protocol-specific) ----
+
 namespace {
-
-// ---- Generic echo server ----
-
-struct EchoServer
-{
-    wl_display *display = nullptr;
-    wl_global *global = nullptr;
-    std::thread thread;
-    int clientFd = -1;
-
-    ~EchoServer() { stop(); }
-
-    void stop()
-    {
-        if (display) {
-            wl_display_terminate(display);
-            if (thread.joinable())
-                thread.join();
-        }
-        if (global) {
-            wl_global_destroy(global);
-            global = nullptr;
-        }
-        if (display) {
-            wl_display_destroy(display);
-            display = nullptr;
-        }
-    }
-};
 
 void multiArgEchoHandler(wl_client *, wl_resource *resource,
                           uint32_t id, int32_t offset, const char *name)
@@ -74,112 +47,99 @@ void bindMultiArg(wl_client *client, void *, uint32_t version, uint32_t id)
     wl_resource_set_implementation(res, &multiArgImpl, nullptr, nullptr);
 }
 
-bool startMultiArgEchoServer(EchoServer &server)
+struct EchoServer {
+    wl_display *display = nullptr;
+    wl_global *global = nullptr;
+    std::thread thread;
+    int clientFd = -1;
+
+    ~EchoServer() { stop(); }
+    void stop() {
+        if (display) wl_display_terminate(display);
+        if (thread.joinable()) thread.join();
+        if (global) { wl_global_destroy(global); global = nullptr; }
+        if (display) { wl_display_destroy(display); display = nullptr; }
+    }
+};
+
+bool startMultiArgEchoServer(EchoServer &s)
 {
-    server.display = wl_display_create();
-    if (!server.display)
-        return false;
-
-    server.global = wl_global_create(server.display,
-                                     &treeland_test_multi_arg_v1_interface,
-                                     1, nullptr, bindMultiArg);
-    if (!server.global)
-        return false;
-
+    s.display = wl_display_create();
+    if (!s.display) return false;
+    s.global = wl_global_create(s.display, &treeland_test_multi_arg_v1_interface, 1, nullptr, bindMultiArg);
+    if (!s.global) return false;
     int sockets[2] = { -1, -1 };
-    if (::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets) != 0)
-        return false;
-    if (!wl_client_create(server.display, sockets[0]))
-        return false;
-
-    server.clientFd = sockets[1];
-    server.thread = std::thread([&server] { wl_display_run(server.display); });
+    if (::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets) != 0) return false;
+    if (!wl_client_create(s.display, sockets[0])) return false;
+    s.clientFd = sockets[1];
+    s.thread = std::thread([&s] { wl_display_run(s.display); });
     return true;
 }
 
-// ---- Event normalization ----
+// ---- Event normalization (protocol-specific) ----
 
-QJsonObject normalizeMultiArgReplyEvent(const tl_test_multi_arg_reply_event &e)
+QJsonObject normalizeReplyEvent(const tl_test_multi_arg_reply_event &e)
 {
     QJsonArray args;
-    args.append(QJsonObject{ { QStringLiteral("type"), QStringLiteral("uint") },
-                             { QStringLiteral("value"), static_cast<qint64>(e.id) } });
-    args.append(QJsonObject{ { QStringLiteral("type"), QStringLiteral("int") },
-                             { QStringLiteral("value"), static_cast<qint64>(e.offset) } });
-    if (e.name)
-        args.append(QJsonObject{ { QStringLiteral("type"), QStringLiteral("string") },
-                                 { QStringLiteral("value"), QString::fromUtf8(e.name) } });
-    else
-        args.append(QJsonObject{ { QStringLiteral("type"), QStringLiteral("string") },
-                                 { QStringLiteral("value"), QJsonValue::Null } });
-
-    return QJsonObject{
-        { QStringLiteral("object"), QStringLiteral("manager") },
-        { QStringLiteral("event"), QStringLiteral("reply") },
-        { QStringLiteral("args"), args },
-    };
+    args.append(QJsonObject{{"type", "uint"}, {"value", static_cast<qint64>(e.id)}});
+    args.append(QJsonObject{{"type", "int"}, {"value", static_cast<qint64>(e.offset)}});
+    args.append(QJsonObject{{"type", "string"}, {"value", e.name ? QJsonValue(QString::fromUtf8(e.name)) : QJsonValue()}});
+    return QJsonObject{{"object", "manager"}, {"event", "reply"}, {"args", args}};
 }
 
-QJsonObject collectMultiArgCheckpoint(const QString &name,
-                                      const tl_test_multi_arg_adapter &adapter)
+QJsonObject collectCheckpoint(const tl_test_multi_arg_adapter &adapter)
 {
     QJsonArray events;
     for (size_t i = 0; i < adapter.reply_event_count; ++i)
-        events.append(normalizeMultiArgReplyEvent(adapter.reply_events[i]));
-
-    QJsonObject checkpoint;
-    checkpoint[QStringLiteral("name")] = name;
-    checkpoint[QStringLiteral("client_events")] = QJsonObject{
-        { QStringLiteral("ordered"), events },
+        events.append(normalizeReplyEvent(adapter.reply_events[i]));
+    return QJsonObject{
+        {"client_events", QJsonObject{{"ordered", events}}},
+        {"connection", QJsonObject{{"display_error", 0}, {"protocol_error", QJsonObject{{"occurred", false}}}}}
     };
-    checkpoint[QStringLiteral("connection")] = QJsonObject{
-        { QStringLiteral("display_error"), 0 },
-        { QStringLiteral("protocol_error"), QJsonObject{ { QStringLiteral("occurred"), false } } },
-    };
-    return checkpoint;
 }
 
-// ---- JSON step execution ----
+// ---- JSON step execution (metadata-driven via dispatch) ----
 
-struct StepResult { bool ok = true; QString error; };
-
-StepResult executeStep(const QJsonObject &step,
-                       tl_test_multi_arg_adapter &adapter,
-                       wl_display *display)
+bool executeStep(const QJsonObject &step, tl_test_multi_arg_adapter &adapter, wl_display *display)
 {
-    const QString type = step.value(QStringLiteral("type")).toString();
-    if (type == QStringLiteral("request")) {
-        const QString name = step.value(QStringLiteral("name")).toString();
-        if (name == QStringLiteral("echo")) {
-            const QJsonArray args = step.value(QStringLiteral("args")).toArray();
-            if (args.size() != 3)
-                return { false, QStringLiteral("echo requires 3 args") };
-            uint32_t id = static_cast<uint32_t>(args.at(0).toInt());
-            int32_t offset = static_cast<int32_t>(args.at(1).toInt());
-            QByteArray nameStr = args.at(2).toString().toUtf8();
-            int rc = tl_test_multi_arg_echo(&adapter, id, offset,
-                                            args.at(2).isNull() ? nullptr : nameStr.constData());
-            if (rc != 0)
-                return { false, QStringLiteral("echo request failed") };
-        }
-    } else if (type == QStringLiteral("barrier")) {
-        const QString barrierType = step.value(QStringLiteral("barrier_type")).toString();
-        if (barrierType == QStringLiteral("client_roundtrip")) {
-            if (wl_display_roundtrip(display) < 0)
-                return { false, QStringLiteral("roundtrip failed") };
-        }
-    } else if (type == QStringLiteral("checkpoint")) {
-        // Checkpoint data is collected after all steps
-    } else if (type == QStringLiteral("disconnect")) {
-        tl_test_multi_arg_clear_events(&adapter);
-        tl_test_multi_arg_destroy(&adapter);
-    }
-    return { true, {} };
-}
+    const QString type = step.value("type").toString();
+    if (type == "request") {
+        const QString name = step.value("name").toString();
+        const QJsonArray jsonArgs = step.value("args").toArray();
 
+        QVector<QByteArray> stringStorage;
+        QVector<const char *> args;
+        for (const QJsonValue &v : jsonArgs) {
+            if (v.isNull()) {
+                args.append(nullptr);
+            } else if (v.isString()) {
+                QByteArray ba = v.toString().toUtf8();
+                stringStorage.append(ba);
+                args.append(stringStorage.last().constData());
+            } else {
+                QByteArray ba = QByteArray::number(static_cast<qlonglong>(v.toDouble()));
+                stringStorage.append(ba);
+                args.append(stringStorage.last().constData());
+            }
+        }
+        int rc = tl_test_multi_arg_dispatch(&adapter, name.toUtf8().constData(),
+                                             const_cast<const char **>(args.constData()),
+                                             args.size());
+        return rc == 0;
+    }
+    if (type == "barrier") {
+        if (step.value("barrier_type").toString() == "client_roundtrip")
+            return wl_display_roundtrip(display) >= 0;
+        return true;
+    }
+    if (type == "checkpoint" || type == "disconnect")
+        return true;
+    return false;
+}
 
 } // namespace
 
+// ---- Main runner entry point ----
 
 ProtocolJsonRunResult runGenericProtocolJsonCase(const ProtocolJsonCase &testCase)
 {
@@ -187,27 +147,26 @@ ProtocolJsonRunResult runGenericProtocolJsonCase(const ProtocolJsonCase &testCas
     QElapsedTimer elapsed;
     elapsed.start();
 
-    const QString protocolName = testCase.input
-        .value(QStringLiteral("protocol")).toString();
-    if (protocolName != QStringLiteral("treeland_test_multi_arg_v1")) {
-        result.failureCategory = QStringLiteral("metadata_validation_error");
-        result.failureMessage = QStringLiteral("unsupported protocol: ") + protocolName;
+    const QString protocolName = testCase.input.value("protocol").toString();
+    if (protocolName != "treeland_test_multi_arg_v1") {
+        result.failureCategory = "metadata_validation_error";
+        result.failureMessage = "unsupported protocol: " + protocolName;
         result.elapsedMs = elapsed.elapsed();
         return result;
     }
 
     EchoServer server;
     if (!startMultiArgEchoServer(server)) {
-        result.failureCategory = QStringLiteral("transport_or_disconnect_error");
-        result.failureMessage = QStringLiteral("failed to start echo server");
+        result.failureCategory = "transport_or_disconnect_error";
+        result.failureMessage = "failed to start echo server";
         result.elapsedMs = elapsed.elapsed();
         return result;
     }
 
     wl_display *clientDisplay = wl_display_connect_to_fd(server.clientFd);
     if (!clientDisplay) {
-        result.failureCategory = QStringLiteral("transport_or_disconnect_error");
-        result.failureMessage = QStringLiteral("failed to connect client");
+        result.failureCategory = "transport_or_disconnect_error";
+        result.failureMessage = "failed to connect client";
         result.elapsedMs = elapsed.elapsed();
         return result;
     }
@@ -220,86 +179,67 @@ ProtocolJsonRunResult runGenericProtocolJsonCase(const ProtocolJsonCase &testCas
     tl_test_multi_arg_bind(&adapter, registry, 1);
     wl_display_roundtrip(clientDisplay);
 
-    result.checks[QStringLiteral("socket_created")] = true;
-    result.checks[QStringLiteral("global_advertised")] = true;
-    result.checks[QStringLiteral("client_connected")] = true;
+    result.checks["socket_created"] = true;
+    result.checks["global_advertised"] = true;
+    result.checks["client_connected"] = true;
 
-    const QJsonArray steps = testCase.input.value(QStringLiteral("steps")).toArray();
+    const QJsonArray steps = testCase.input.value("steps").toArray();
     QJsonObject checkpoints;
     bool failed = false;
 
-    for (const QJsonValue &stepVal : steps) {
-        const QJsonObject step = stepVal.toObject();
-        const QString stepType = step.value(QStringLiteral("type")).toString();
+    for (const QJsonValue &sv : steps) {
+        const QJsonObject step = sv.toObject();
+        const QString stepType = step.value("type").toString();
 
-        if (stepType == QStringLiteral("checkpoint")) {
-            const QString name = step.value(QStringLiteral("name")).toString();
-            checkpoints[name] = collectMultiArgCheckpoint(name, adapter);
+        if (stepType == "checkpoint") {
+            const QString cpName = step.value("name").toString();
+            checkpoints[cpName] = collectCheckpoint(adapter);
             tl_test_multi_arg_clear_events(&adapter);
+        } else if (stepType == "disconnect") {
+            tl_test_multi_arg_clear_events(&adapter);
+            tl_test_multi_arg_destroy(&adapter);
         } else {
-            StepResult sr = executeStep(step, adapter, clientDisplay);
-            if (!sr.ok) {
-                result.failureCategory = QStringLiteral("adapter_validation_error");
-                result.failureMessage = sr.error;
+            if (!executeStep(step, adapter, clientDisplay)) {
+                result.failureCategory = "adapter_validation_error";
+                result.failureMessage = "step execution failed";
                 failed = true;
                 break;
             }
         }
     }
 
-    // Build actual
     QJsonObject actual;
-    actual[QStringLiteral("case")] = testCase.caseId;
-    actual[QStringLiteral("checkpoints")] = checkpoints;
+    actual["case"] = testCase.caseId;
+    actual["checkpoints"] = checkpoints;
 
     if (!failed) {
-        // Compare with expected
-        const QJsonObject expectedCheckpoints = testCase.expected
-            .value(QStringLiteral("checkpoints")).toObject();
-        for (auto it = expectedCheckpoints.constBegin();
-             it != expectedCheckpoints.constEnd(); ++it) {
+        const QJsonObject expCheckpoints = testCase.expected.value("checkpoints").toObject();
+        for (auto it = expCheckpoints.constBegin(); it != expCheckpoints.constEnd(); ++it) {
             const QString cpName = it.key();
-            result.checks[QStringLiteral("checkpoint_") + cpName] = checkpoints.contains(cpName);
-
+            result.checks["checkpoint_" + cpName] = checkpoints.contains(cpName);
             if (!checkpoints.contains(cpName)) {
-                result.failureCategory = QStringLiteral("checkpoint_event_diff");
-                result.failureMessage = QStringLiteral("missing checkpoint: ") + cpName;
+                result.failureCategory = "checkpoint_event_diff";
+                result.failureMessage = "missing checkpoint: " + cpName;
                 result.failureCheckpoint = cpName;
-                failed = true;
-                break;
+                failed = true; break;
             }
-
             const QJsonObject actualCp = checkpoints[cpName].toObject();
             const QJsonObject expectedCp = it.value().toObject();
-
-            // Compare client_events
-            const QJsonArray actualEvents = actualCp
-                .value(QStringLiteral("client_events")).toObject()
-                .value(QStringLiteral("ordered")).toArray();
-            const QJsonArray expectedEvents = expectedCp
-                .value(QStringLiteral("client_events")).toObject()
-                .value(QStringLiteral("ordered")).toArray();
-
+            QJsonArray actualEvents = actualCp.value("client_events").toObject().value("ordered").toArray();
+            QJsonArray expectedEvents = expectedCp.value("client_events").toObject().value("ordered").toArray();
             if (actualEvents != expectedEvents) {
-                result.failureCategory = QStringLiteral("checkpoint_event_diff");
-                result.failureMessage = QStringLiteral("event mismatch at checkpoint: ") + cpName;
+                result.failureCategory = "checkpoint_event_diff";
+                result.failureMessage = "event mismatch at: " + cpName;
                 result.failureCheckpoint = cpName;
-                result.expectedDifference = QJsonObject{
-                    { QStringLiteral("client_events"), QJsonObject{
-                        { QStringLiteral("ordered"), expectedEvents } } } };
-                result.actualDifference = QJsonObject{
-                    { QStringLiteral("client_events"), QJsonObject{
-                        { QStringLiteral("ordered"), actualEvents } } } };
-                failed = true;
-                break;
+                result.expectedDifference = QJsonObject{{"client_events", QJsonObject{{"ordered", expectedEvents}}}};
+                result.actualDifference = QJsonObject{{"client_events", QJsonObject{{"ordered", actualEvents}}}};
+                failed = true; break;
             }
         }
     }
 
-    // Teardown
     tl_test_multi_arg_adapter_fini(&adapter);
-    if (adapter.proxy)
-        tl_test_multi_arg_destroy(&adapter);
+    if (adapter.proxy) tl_test_multi_arg_destroy(&adapter);
     wl_registry_destroy(registry);
     wl_display_disconnect(clientDisplay);
 

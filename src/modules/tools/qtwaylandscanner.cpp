@@ -657,6 +657,8 @@ void Scanner::printTestClientHeader(const std::vector<WaylandInterface> &interfa
     printf("int %s_bind(struct %s_adapter *adapter, struct wl_registry *registry, "
            "uint32_t requested_version);\n", adapter.constData(), adapter.constData());
     printf("void %s_clear_events(struct %s_adapter *adapter);\n", adapter.constData(), adapter.constData());
+    printf("int %s_dispatch(void *adapter_ptr, const char *name, const char **args, int arg_count);\n",
+           adapter.constData());
     for (const WaylandEvent &request : target->requests) {
         printf("int %s_%s(struct %s_adapter *adapter", adapter.constData(), request.name.constData(), adapter.constData());
         for (const WaylandArgument &argument : request.arguments) {
@@ -973,6 +975,50 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
                    "    adapter->protocol_destructor_sent = true;\n");
         printf("    return 0;\n}\n");
     }
+
+    // Generate generic dispatch function (uniform signature for runner)
+    printf("\nint %s_dispatch(void *adapter_ptr, const char *name, const char **args, int arg_count)\n{\n",
+           adapter.constData());
+    printf("    struct %s_adapter *adapter = (struct %s_adapter *)adapter_ptr;\n",
+           adapter.constData(), adapter.constData());
+    for (const WaylandEvent &request : target->requests) {
+        if (request.type == "destructor")
+            continue;
+        printf("    if (strcmp(name, \"%s\") == 0) {\n", request.name.constData());
+        printf("        if (arg_count != %d)\n            return -1;\n",
+               (int)request.arguments.size());
+        // Parse each arg from string
+        for (size_t i = 0; i < request.arguments.size(); ++i) {
+            const WaylandArgument &arg = request.arguments[i];
+            if (arg.type == "new_id" || arg.type == "object" || arg.type == "array"
+                || arg.type == "fd" || arg.type == "fixed")
+                continue;
+            if (arg.type == "uint" || arg.type == "enum")
+                printf("        uint32_t a_%s = (uint32_t)strtoul(args[%zu], NULL, 10);\n",
+                       arg.name.constData(), i);
+            else if (arg.type == "int")
+                printf("        int32_t a_%s = (int32_t)strtol(args[%zu], NULL, 10);\n",
+                       arg.name.constData(), i);
+            else if (arg.type == "string")
+                printf("        const char *a_%s = (arg_count > %zu && args[%zu]) ? args[%zu] : NULL;\n",
+                       arg.name.constData(), i, i, i);
+            else
+                printf("        // TODO: parse type %s\n", arg.type.constData());
+        }
+        printf("        return %s_%s(adapter", adapter.constData(), request.name.constData());
+        for (const WaylandArgument &arg : request.arguments) {
+            if (arg.type == "new_id")
+                continue;
+            if (arg.type == "object" || arg.type == "array" || arg.type == "fd")
+                printf(", NULL");
+            else if (arg.type == "fixed")
+                printf(", 0");
+            else
+                printf(", a_%s", arg.name.constData());
+        }
+        printf(");\n    }\n");
+    }
+    printf("    return -1;\n}\n");
 }
 
 void Scanner::printTestClientMetadata(const std::vector<WaylandInterface> &interfaces)
