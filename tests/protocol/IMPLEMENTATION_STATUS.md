@@ -78,4 +78,4 @@ Known issues:
 - LSan suppressions 已新增 `wl_display_read_events` 以覆盖 raw Wayland client 内部
   buffer 泄漏。
 
-Next authorized action: MVP-D4 (剩余参数类型) 已完成；下一个阶段待用户指定。
+Next authorized action: start MVP-D4e multi-arg event generalization when explicitly requested; preserve all PoC 0A through MVP-D4d regressions
