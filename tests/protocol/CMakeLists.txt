@@ -427,6 +427,24 @@ set_tests_properties(protocol-json-runner-multi-arg-echo PROPERTIES
     TIMEOUT 10
 )
 
+add_executable(protocol-global-version-selftest
+    globalversionselftest.cpp
+    ${multi_arg_client_header}
+    ${multi_arg_client_code}
+    ${multi_arg_server_header}
+    ${multi_arg_adapter_header}
+    ${multi_arg_adapter_code}
+)
+target_include_directories(protocol-global-version-selftest PRIVATE ${multi_arg_generated_directory})
+target_link_libraries(protocol-global-version-selftest
+    PRIVATE Qt6::Test PkgConfig::WAYLAND_CLIENT PkgConfig::WAYLAND_SERVER)
+
+add_test(NAME protocol-global-version-selftest COMMAND protocol-global-version-selftest)
+set_tests_properties(protocol-global-version-selftest PROPERTIES
+    LABELS "protocol-wire;generated-adapter;mvp-d5"
+    TIMEOUT 10
+)
+
 
 set(obj_newid_test_xml ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/treeland-test-object-newid-v1.xml)
 set(obj_newid_generated_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-test-object-newid-v1)

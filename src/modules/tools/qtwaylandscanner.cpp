@@ -55,6 +55,7 @@ private:
         bool request;
         QByteArray name;
         QByteArray type;
+        int since = 1;
         std::vector<WaylandArgument> arguments;
     };
 
@@ -236,6 +237,7 @@ Scanner::WaylandEvent Scanner::readEvent(QXmlStreamReader &xml, bool request)
         .request = request,
         .name = byteArrayValue(xml, "name"),
         .type = byteArrayValue(xml, "type"),
+        .since = intValue(xml, "since", 1),
         .arguments = {},
     };
     while (xml.readNextStartElement()) {
@@ -937,6 +939,8 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
             printf(", %s%s%s", type.constData(), type.endsWith('*') ? "" : " ", argument.name.constData());
         }
         printf(")\n{\n    if (!adapter->proxy || !adapter->local_proxy_alive)\n        return -1;\n");
+        if (request.since > 1)
+            printf("    if (adapter->bound_version < %d)\n        return -1;\n", request.since);
         for (const WaylandArgument &argument : request.arguments) {
             if (argument.type == "array" && !argument.allowNull)
                 printf("    if (!%s)\n        return -1;\n", argument.name.constData());
@@ -994,6 +998,7 @@ void Scanner::printTestClientMetadata(const std::vector<WaylandInterface> &inter
                 result.append(QJsonObject{
                     { QStringLiteral("name"), QString::fromUtf8(event.name) },
                     { QStringLiteral("destructor"), event.type == "destructor" },
+                    { QStringLiteral("since"), event.since },
                     { QStringLiteral("arguments"), arguments },
                 });
             }
