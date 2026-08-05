@@ -1,8 +1,8 @@
 # Treeland Wayland Protocol Test Implementation Status
 
 Current stage: MVP-D4e (multi-arg event generalization)
-State: awaiting_human_validation
-Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2, MVP-D3, MVP-D4a, MVP-D4b, MVP-D4c, MVP-D4d]
+State: accepted
+Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2, MVP-D3, MVP-D4a, MVP-D4b, MVP-D4c, MVP-D4d, MVP-D4e]
 
 Stage commits (D4d and prior):
 - `64dbceb65` test(protocol): accept MVP-D4d event new_id stage
@@ -47,8 +47,7 @@ ctest --test-dir build-feat-testprotocol \
   --output-on-failure
 ```
 
-Human validation: pending
-
+Human validation: passed
 Known issues:
 - D4e 已实现多参数 event 和 int/string/enum 类型支持；object 类型和 request new_id 仍未实现。
 - 旧按类型分桶的数组（fixed_events, array_events 等）仍保留在 adapter struct 中，
