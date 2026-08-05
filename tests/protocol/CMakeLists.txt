@@ -1044,3 +1044,4 @@ set_tests_properties(protocol-window-management-adapter-contract PROPERTIES
     LABELS "protocol-wire;protocol-high;generated-adapter;contract-diff"
     TIMEOUT 30
 )
+add_subdirectory(gen-test-client)
