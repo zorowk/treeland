@@ -659,6 +659,16 @@ void Scanner::printTestClientHeader(const std::vector<WaylandInterface> &interfa
     printf("void %s_clear_events(struct %s_adapter *adapter);\n", adapter.constData(), adapter.constData());
     printf("int %s_dispatch(void *adapter_ptr, const char *name, const char **args, int arg_count);\n",
            adapter.constData());
+    printf("struct %s_registry_type {\n", adapter.constData());
+    printf("    const char *protocol_name;\n    size_t adapter_size;\n");
+    printf("    void (*init)(void *);\n    void (*fini)(void *);\n");
+    printf("    int (*bind)(void *, struct wl_registry *, uint32_t);\n");
+    printf("    void (*clear_events)(void *);\n");
+    printf("    int (*dispatch)(void *, const char *, const char **, int);\n");
+    printf("    int (*destroy)(void *);\n");
+    printf("    const struct wl_registry_listener *(*listener)(void);\n");
+    printf("};\n");
+    printf("extern const struct %s_registry_type %s_registry;\n", adapter.constData(), adapter.constData());
     for (const WaylandEvent &request : target->requests) {
         printf("int %s_%s(struct %s_adapter *adapter", adapter.constData(), request.name.constData(), adapter.constData());
         for (const WaylandArgument &argument : request.arguments) {
@@ -1019,6 +1029,20 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
         printf(");\n    }\n");
     }
     printf("    return -1;\n}\n");
+
+    // Generate uniform registry struct for runner dispatch
+    printf("\nconst struct %s_registry_type %s_registry = {\n",
+           adapter.constData(), adapter.constData());
+    printf("    .protocol_name = \"%s\",\n", target->name.constData());
+    printf("    .adapter_size = sizeof(struct %s_adapter),\n", adapter.constData());
+    printf("    .init = (void (*)(void *))%s_adapter_init,\n", adapter.constData());
+    printf("    .fini = (void (*)(void *))%s_adapter_fini,\n", adapter.constData());
+    printf("    .bind = (int (*)(void *, struct wl_registry *, uint32_t))%s_bind,\n", adapter.constData());
+    printf("    .clear_events = (void (*)(void *))%s_clear_events,\n", adapter.constData());
+    printf("    .dispatch = (int (*)(void *, const char *, const char **, int))%s_dispatch,\n", adapter.constData());
+    printf("    .destroy = (int (*)(void *))%s_destroy,\n", adapter.constData());
+    printf("    .listener = %s_registry_listener,\n", adapter.constData());
+    printf("};\n");
 }
 
 void Scanner::printTestClientMetadata(const std::vector<WaylandInterface> &interfaces)

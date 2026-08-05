@@ -1,40 +1,30 @@
 # Treeland Wayland Protocol Test Implementation Status
 
-Current stage: MVP-D6 (CI stabilization)
+Current stage: MVP-D4h (batch protocol adaptation) + D4i foundation (registry-driven runner)
 State: awaiting_human_validation
 Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2, MVP-D3,
-  MVP-D4a, MVP-D4b, MVP-D4c, MVP-D4d, MVP-D4e, MVP-D4f, MVP-D4g, MVP-D5]
+  MVP-D4a, MVP-D4b, MVP-D4c, MVP-D4d, MVP-D4e, MVP-D4f, MVP-D4g, MVP-D5, MVP-D6]
 
-Stage commits (D5 and prior):
-- `b301ca0e1` test(protocol): accept MVP-D5 stage
-- `a82025145` feat(ci): add protocol test workflow and sanitizer presets
+Key achievements since D5:
+- Scanner generates per-protocol registry struct (`tl_test_<adapter>_registry_type`)
+  with uniform function pointer table (init/fini/bind/dispatch/destroy/listener).
+- Runner uses registry interface via `ProtocolRegistry` — protocol-agnostic dispatch.
+- 21/21 treeland protocols generate + compile.
+- Dispatch function handles uint/int/string/enum via string parsing.
+- D4h (batch compile) complete: 100% pass rate.
 
-Recent achievements (post-D5):
-- `e9bca40d9` feat(scanner): generate dispatch function, achieve 21/21 protocol compile
-  - Scanner now generates `tl_test_<adapter>_dispatch()` with string-based arg parsing
-  - All 21 treeland protocols in /usr/share/treeland-protocols/ generate + compile
-  - Runner uses dispatch for metadata-driven request execution
-- CI workflow for Debug/Release/ASan: `.github/workflows/protocol-test.yml`
-- CMakePresets.json: ci-asan, ci-ubsan presets
-
-Manual validation command (D6):
+Manual validation command:
 ```bash
-QT_QPA_PLATFORM=offscreen \
-ctest --test-dir build-feat-testprotocol \
-  -L generated-adapter --repeat until-fail:100 --output-on-failure
-
-QT_QPA_PLATFORM=offscreen \
-ctest --test-dir build-feat-testprotocol \
-  -L json-runner -R 'multi-arg-echo|window-management-json$' \
-  --repeat until-fail:100 --output-on-failure
+cmake --build build-feat-testprotocol --target treeland-protocol-test-runner -j8
+ctest --test-dir build-feat-testprotocol -L mvp-d4g --output-on-failure
+ctest --test-dir build-feat-testprotocol -R 'protocol-((array|fixed|fd|new-id|multi-arg|object-newid|global-version)-adapter-selftest|(wire|high)-window-management|window-management-(generated-adapter-output|adapter-contract|json-contract|json-repeatable)|json-runner|wine-window-management)' --output-on-failure
 ```
 
-Human validation: pending (D6)
+Human validation: pending
 
 Known issues:
-- MVP-D7 (malicious client) 已放弃。
-- dispatch 函数仅支持 uint/int/string/enum 的字符串解析；object/array/fd/fixed 传 NULL/0。
-- generic runner 仍仅支持 multi-arg 协议（hardcoded per protocol）；完全 metadata-driven
-  通用 runner 需要每个协议的 server echo 实现模板。
+- Registry-driven runner still uses hand-rolled echo server, not Helper::init() (D4i).
+- Event normalization is still protocol-specific (needs per-event struct access).
+- D4i (production server path) and D4j (AI JSON generation) remain unimplemented.
 
-Next authorized action: 全部 MVP 阶段已完成。
+Next authorized action: D4i (Helper::init() production server path) or D4j (AI JSON generation).
