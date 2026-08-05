@@ -1,8 +1,8 @@
 # Treeland Wayland Protocol Test Implementation Status
 
 Current stage: MVP-D4c (fd)
-State: awaiting_human_validation
-Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2, MVP-D3, MVP-D4a, MVP-D4b]
+State: accepted
+Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2, MVP-D3, MVP-D4a, MVP-D4b, MVP-D4c]
 
 Stage commits (D4b and prior):
 - `2dc4e99d710af993a0aed864a82f46e47e8a1fe0` test(protocol): cover array adapter values
@@ -62,7 +62,7 @@ ctest --test-dir build-feat-testprotocol-asan \
   --output-on-failure
 ```
 
-Human validation: pending
+Human validation: passed
 
 Known issues:
 - MVP-D4c 已实现 fd；event `new_id` 和 malicious wire 仍未实现。
