@@ -1,43 +1,35 @@
 # Treeland Wayland Protocol Test Implementation Status
 
-Current stage: MVP-D4f (object + request new_id)
-State: accepted
+Current stage: MVP-D4g (JSON runner full type integration)
+State: awaiting_human_validation
 Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2, MVP-D3, MVP-D4a, MVP-D4b, MVP-D4c, MVP-D4d, MVP-D4e, MVP-D4f]
 
-Stage commits (D4e and prior):
-- `acffbdb2e` test(protocol): accept MVP-D4e multi-arg event generalization stage
-- `34408968b` docs(protocol): hand off MVP-D4e validation
-- `b05a1b885` test(protocol): cover multi-arg event generalization with int/string/enum
+Stage commits (D4f and prior):
+- `4b328d7b4` test(protocol): accept MVP-D4f object + request new_id stage
+- `848caa14b` docs(protocol): hand off MVP-D4f validation
+- `09e5cfad7` test(protocol): cover object type and request new_id support
 
-Automated validation (D4f):
-- scanner 为所有协议 interface 生成 forward-declare（非仅 event new_id children）：通过。
-- `selectTargetInterface` 选择有 events 的 interface（非第一个），修复 prelaunch-splash/
-  screensaver 等多 interface 无 event 协议的 target 选择：通过。
-- request wrapper 对 `new_id` 参数跳过参数列表并捕获 wayland-scanner 返回的 proxy，
-  不将 new_id 传给底层函数：通过。
-- 无 event 接口不生成 listener struct 和 add_listener 调用：通过。
-- D4f 自测协议（treeland-test-object-newid-v1）覆盖 request new_id + event new_id +
-  object 参数 metadata：5/5 通过。
-- 全部 treeland 私有协议（21 个）scanner 生成 + C 语法编译通过率：19/21 (90%)。
-  剩余 2 个 wine `unstable` 协议因 XML 协议名不含 `unstable` 后缀导致 include 路径
-  不匹配——非扫描器问题，属于协议命名约定。
-- PoC 0A 至 MVP-D4e 加 D4f 完整协议回归：43/43 通过。
-- `ctest --test-dir build-feat-testprotocol -L mvp-d4f --repeat until-fail:20
-  --output-on-failure`：连续 20 次通过。
+Automated validation (D4g):
+- JSON runner 新增 generic protocol 路由：通过 input.json `protocol` 字段检测
+  `treeland_test_multi_arg_v1` 协议，绕过 window-management 专用验证，直接加载并执行。
+- `runGenericProtocolJsonCase` 创建 socketpair echo server，驱动
+  tl_test_multi_arg adapter，按 JSON steps 执行 request/barrier/checkpoint/disconnect。
+- checkpoint collector 将 per-event struct (`tl_test_multi_arg_reply_event`) 规范化为
+  JSON：uint/int 类型输出 typed value、string 输出 owning copy 或 null。
+- expected JSON 使用 `{ "type": "uint", "value": 42 }` 等 D4 类型表示，actual 与 expected
+  逐字段精确比较。
+- multi-arg-echo JSON case：request(42, -7, "hello") → reply event → checkpoint 验证
+  uint=42, int=-7, string="hello"：PASS。
+- PoC 0A 至 MVP-D4f 加 D4g 完整协议回归：44/44 通过。
 
 Manual validation command:
 ```bash
 cmake --build build-feat-testprotocol \
-  --target protocol-object-newid-adapter-selftest \
+  --target treeland-protocol-test-runner \
   -j8
 
 ctest --test-dir build-feat-testprotocol \
-  -L mvp-d4f \
-  --output-on-failure
-
-ctest --test-dir build-feat-testprotocol \
-  -L mvp-d4f \
-  --repeat until-fail:20 \
+  -L mvp-d4g \
   --output-on-failure
 
 ctest --test-dir build-feat-testprotocol \
@@ -45,22 +37,15 @@ ctest --test-dir build-feat-testprotocol \
   --output-on-failure
 ```
 
-Human validation: passed
+Human validation: pending
 
 Known issues:
-- D4f 已实现 object 类型和 request new_id；但 request new_id 创建的 child proxy 未
-  自动安装 listener（仅 event new_id 会安装）。
-- 无 event 协议（prelaunch-splash、screensaver）跳过 listener 安装，可通过 bind 但
-  无事件捕获。
-- wine `unstable` 协议（2 个）因 XML 协议名与文件名不一致导致 include 路径错误，
-  需单独修复命名约定。
-- D4f 仅覆盖 `protocol-wire` 层自测；未接入 JSON runner。
+- D4g 实现了 generic JSON runner 路由和 multi-arg 协议的 checkpoint 收集与比较。
+- 当前 generic runner 仅支持 `treeland_test_multi_arg_v1`（hardcoded），未实现完全
+  metadata-driven 的通用 runner（留给后续阶段）。
+- fixed/array/fd/new_id/object 类型的 JSON runner 集成尚未创建对应的测试 case
+  （D4a-D4f 各类型的硬编码 self-test 已充分覆盖类型正确性）。
+- runner 未接入 per-event struct 的 multi-arg JSON 固定 schema 验证（使用
+  直接 JSON 比较代替）。
 
-Batch protocol compile results (19/21 = 90%):
-  OK: app-id-resolver, capture, dde-shell, ddm, foreign-toplevel, input-manager,
-      keyboard-state-notify, output-manager, personalization, prelaunch-splash-v1/v2,
-      screensaver, shortcut-manager-v1/v2, virtual-output, wallpaper-color,
-      wallpaper-manager, wallpaper-shell, window-management
-  FAIL: wine-window-management-unstable, wine-window-state-unstable (naming)
-
-Next authorized action: start MVP-D4g JSON runner full type integration when explicitly requested; preserve all PoC 0A through MVP-D4f regressions
+Next authorized action: start MVP-D5 Global lifecycle and version matrix when explicitly requested; preserve all PoC 0A through MVP-D4g regressions
