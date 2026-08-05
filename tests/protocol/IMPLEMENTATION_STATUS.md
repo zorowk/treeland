@@ -1,117 +1,80 @@
 # Treeland Wayland Protocol Test Implementation Status
 
-Current stage: MVP-D4b (array)
-State: accepted
+Current stage: MVP-D4c (fd)
+State: awaiting_human_validation
 Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2, MVP-D3, MVP-D4a, MVP-D4b]
 
-Stage commits:
+Stage commits (D4b and prior):
 - `2dc4e99d710af993a0aed864a82f46e47e8a1fe0` test(protocol): cover array adapter values
 - `428ee429f0ed01d1e4d3135b0b14f6c90c4cab05` test(protocol): cover fixed adapter values
 - `772802c6c1baf9eb40cae5a28449e46bef950095` fix(protocol): isolate Wine controls by manager binding
 - `d6792442d243106604950e585fde6d4970c64000` test(protocol): exercise Wine multi-client isolation
 
-Automated validation:
-- D4b 使用 `{ "bytes": [0, 255] }` 作为 Wayland array 的唯一 JSON 表示，元素语义明确为
-  byte；空数组和二进制数据可精确往返，null、裸数组、浮点、负数、溢出、字符串和额外字段均被拒绝：通过。
-- scanner 生成 array request wrapper、metadata 和 event listener；listener 在 callback 返回前
-  `malloc`/`memcpy` 深拷贝，`clear_events`/`adapter_fini` 释放 snapshot，不保留 `wl_array`
-  临时内存：通过。
-- 独立 socketpair 上的真实 Wayland request/event wire echo 覆盖空数组、内嵌零字节和 1 KiB
-  边界值；发送后修改 request backing storage 不影响 event snapshot：通过。
-- 非 nullable array 的 null request、protocol destructor 后 request、event 容量溢出均产生可观察的
-  adapter validation failure，clear 后失败状态和 snapshot 均复位：通过。
-- `ctest --test-dir build-feat-testprotocol -L mvp-d4b-accepted --repeat until-fail:20
+Automated validation (D4c):
+- scanner test-client-header/code/metadata 模式从 `treeland-test-fd-v1.xml` 生成
+  `struct tl_test_fd_fd_event { const char *name; int fd; }`、`fd_events[]`、`fd_event_count`、
+  `int32_t` request wrapper 和 metadata：通过。
+- 生成 adapter 使用 `F_DUPFD_CLOEXEC` + `fcntl()` 在 event callback 内 dup fd（独立所有权），
+  `clear_events`/`adapter_fini` 关闭所有已拥有 fd，不保留原始 fd 数字：通过。
+- 独立 socketpair 上的真实 Wayland request/event wire echo 覆盖有效 fd；echo 后关闭原始 fd，
+  event snapshot 的 dup fd 可通过 `fcntl(F_GETFD)` 验证：通过。
+- `normalizedProtocolFd` 返回 `{ "fd": "valid" }` — 不序列化原始 fd 数字；null fd 返回空对象：通过。
+- JSON 输入接受 `{ "fd": true }`（分配管道 fd）和 `null`（fd = -1）；拒绝裸值、错误成员名、
+  `false`、额外字段：通过。
+- 非 nullable fd 的负值 request 自然导致服务端 `wl_client_post_implementation_error` 断开；
+  event capacity 溢出产生 `event_snapshot_failed`，clear 后恢复：通过。
+- protocol destructor 后再次调用 fd request 返回 adapter validation failure：通过。
+- `ctest --test-dir build-feat-testprotocol -L mvp-d4c --repeat until-fail:20
   --output-on-failure`：连续 20 次通过。
-- PoC 0A 至 MVP-D3 加 D4a/D4b 完整协议回归：39/39 通过。
-- ASan/LSan 下 `ctest --test-dir build-feat-testprotocol-asan -L mvp-d4b-accepted
+- PoC 0A 至 MVP-D4b 加 D4c 完整协议回归：40/40 通过。
+- ASan/LSan 下 `ctest --test-dir build-feat-testprotocol-asan -R protocol-fd-adapter-selftest
   --output-on-failure`：1/1 通过，无 sanitizer error 或 leak。
-- D4a 使用 `{ "raw": int32 }` 作为 Wayland signed 24.8 fixed 的唯一 JSON 表示；整数、负数、
-  `INT32_MIN` 和 `INT32_MAX` 可精确往返，null、浮点 raw、越界值和额外字段均被拒绝：通过。
-- scanner 从测试 XML 生成 `wl_fixed_t` request wrapper、fixed metadata 和 event listener；listener
-  在 callback 返回前按值复制 raw fixed 和静态 event name，clear 后不保留借用内存：通过。
-- 独立 socketpair 上的真实 Wayland request/event wire echo 覆盖 `0`、`-0.5`、`1.5`、
-  `INT32_MIN` 和 `INT32_MAX`，actual 统一规范化为 `{ "raw": ... }`：通过。
-- protocol destructor 后再次调用 fixed request 返回 adapter validation failure：通过。
-- `ctest --test-dir build-feat-testprotocol -L mvp-d4a-accepted --repeat until-fail:20
-  --output-on-failure`：连续 20 次通过。
-- PoC 0A 至 MVP-D3 加 D4a 完整协议回归：38/38 通过。
-- ASan/LSan 下 `ctest --test-dir build-feat-testprotocol-asan -L mvp-d4a-accepted
-  --output-on-failure`：1/1 通过，无 sanitizer error 或 leak。
-- 两个独立线程分别拥有自己的 `wl_display`、proxy/object table、event collector 和连接错误快照：通过。
-- 两个 manager binding 均获得各自 session-local `window_id=1`；client-2 的
-  `hwnd_insert_after(sibling_id=1)` 不解析到 client-1，stack order 保持不变：通过。
-- client-1 `set_position` 只改变自身 geometry/event；client-2 roundtrip 无污染事件：通过。
-- client-1 graceful disconnect 后 client-2 control、surface 和连接继续存活并可处理 request：通过。
-- client-1 protocol error 只归属 client-1；client-2 保持无 display/protocol error 并可继续操作：通过。
-- 两个客户端 teardown 后 client/surface/control resource 恢复基线 `0/0/0`：通过。
-- wrong-attribution self-test 将 client-1 event 故意写入 client-2 expected，并以
-  `checkpoint_client_isolation_diff` 在 `client-1-operated` checkpoint 失败：通过。
-- `ctest --test-dir build-feat-testprotocol -L mvp-d3 --output-on-failure`：3/3 通过。
-- `ctest --test-dir build-feat-testprotocol -L mvp-d3 --repeat until-fail:20
-  --output-on-failure`：三个测试各连续 20 次通过。
-- PoC 0A 至 MVP-D3 完整协议回归：37/37 通过。
-- ASan/LSan 下 `ctest --test-dir build-feat-testprotocol-asan -L mvp-d3
-  --output-on-failure`：3/3 通过，无未抑制的 sanitizer error 或 leak。
+- scanner 两次生成 header 和 code：diff 为空，输出稳定。
 
 Manual validation command:
 ```bash
 cmake --build build-feat-testprotocol \
-  --target protocol-array-adapter-selftest \
+  --target protocol-fd-adapter-selftest \
   -j8
 
 ctest --test-dir build-feat-testprotocol \
-  -L mvp-d4b-accepted \
+  -L mvp-d4c \
   --output-on-failure
 
 ctest --test-dir build-feat-testprotocol \
-  -L mvp-d4b-accepted \
-  --repeat until-fail:20 \
-  --output-on-failure
-
-cmake --build build-feat-testprotocol \
-  --target treeland-protocol-test-runner \
-  -j8
-
-ctest --test-dir build-feat-testprotocol \
-  -L mvp-d3-accepted \
-  --output-on-failure
-
-ctest --test-dir build-feat-testprotocol \
-  -L mvp-d3-accepted \
+  -L mvp-d4c \
   --repeat until-fail:20 \
   --output-on-failure
 
 ctest --test-dir build-feat-testprotocol \
-  -R 'protocol-((array|fixed)-adapter-selftest|(wire|high)-window-management|window-management-(generated-adapter-output|adapter-contract|json-contract|json-repeatable)|json-runner|wine-window-management)' \
+  -R 'protocol-((array|fixed|fd)-adapter-selftest|(wire|high)-window-management|window-management-(generated-adapter-output|adapter-contract|json-contract|json-repeatable)|json-runner|wine-window-management)' \
   --output-on-failure
 
 ASAN_OPTIONS=detect_leaks=0 \
 cmake --build build-feat-testprotocol-asan \
-  --target protocol-array-adapter-selftest \
+  --target protocol-fd-adapter-selftest \
   -j8
 
 ASAN_OPTIONS=detect_leaks=1:halt_on_error=1:detect_odr_violation=0 \
 LSAN_OPTIONS=exitcode=23:suppressions="$PWD/tests/protocol/lsan-suppressions.txt" \
 ctest --test-dir build-feat-testprotocol-asan \
-  -L mvp-d4b-accepted \
+  -R protocol-fd-adapter-selftest \
   --output-on-failure
 ```
 
-Human validation: passed
+Human validation: pending
 
 Known issues:
-- MVP-D4b 已实现 array；fd、event `new_id` 和 malicious wire 仍未实现。
-- array event snapshot 独立拥有 callback 内复制的 byte buffer，由 `clear_events` 或
-  `adapter_fini` 释放；request 的 `wl_array` 只在同步 marshal 调用期间借用 owning
-  `QByteArray`。fd 必须在 D4c 另行定义 `dup()`/关闭规则。
-- MVP-D3 正向 expected 已随人工验收更新为 `human-reviewed`；wrong-attribution self-test 继续保持
-  `candidate`。
+- MVP-D4c 已实现 fd；event `new_id` 和 malicious wire 仍未实现。
+- fd 由 `protocolFdFromJson` 通过 `pipe()` 分配，echo request 完成后调用方负责关闭。
+  Event callback 使用 `fcntl(F_DUPFD_CLOEXEC)` dup，`clear_events` 关闭，所有权明确。
+- `normalizedProtocolFd` 返回 `{ "fd": "valid" }`，不序列化原始 fd 数字，符合阶段规范。
+- 当前 D4c 仅覆盖 `protocol-wire` 层自测；fd 尚未接入 JSON runner 或 Wine protocol-high 场景。
 - 受控沙箱不允许 Unix socket `bind()`，真实 Wayland 测试需要在获准的非沙箱环境运行。
 - ASan 构建阶段使用 `detect_leaks=0`，因为 instrumented QtWayland 代码生成器在受控环境下不能
   启动 LSan；最终测试阶段重新启用 LSan。
-- 最终 ASan 运行禁用 `detect_odr_violation`，因为 waylib 与 treeland 都链接了生成的
-  `xdg_popup_interface`；否则测试在进入生命周期逻辑前终止。
-- LSan suppressions 仅覆盖现有 Waylib/QML fixture wrapper 循环；WineWindowControl 和
-  WineWindowManager 未被抑制，并由远端 control resource 的 `1 -> 0` 硬断言独立验证。
+- ASan 运行禁用 `detect_odr_violation`，因为 waylib 与 treeland 都链接了生成的
+  `xdg_popup_interface`。
+- LSan suppressions 仅覆盖现有 Waylib/QML fixture wrapper 循环。
 
-Next authorized action: start MVP-D4c fd only when explicitly requested; preserve all PoC 0A through MVP-D4b regressions
+Next authorized action: start MVP-D4d event new_id only when explicitly requested; preserve all PoC 0A through MVP-D4c regressions
