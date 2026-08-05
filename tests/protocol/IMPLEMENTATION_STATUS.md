@@ -1,8 +1,8 @@
 # Treeland Wayland Protocol Test Implementation Status
 
 Current stage: MVP-D5 (global lifecycle and version matrix)
-State: awaiting_human_validation
-Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2, MVP-D3, MVP-D4a, MVP-D4b, MVP-D4c, MVP-D4d, MVP-D4e, MVP-D4f, MVP-D4g]
+State: accepted
+Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2, MVP-D3, MVP-D4a, MVP-D4b, MVP-D4c, MVP-D4d, MVP-D4e, MVP-D4f, MVP-D4g, MVP-D5]
 
 Stage commits (D4g and prior):
 - `0ed686ef5` test(protocol): accept MVP-D4g JSON runner stage
@@ -34,7 +34,7 @@ ctest --test-dir build-feat-testprotocol \
   --output-on-failure
 ```
 
-Human validation: pending
+Human validation: passed
 
 Known issues:
 - D5 已实现 version clamping、global remove/rebind 和 since 校验。
