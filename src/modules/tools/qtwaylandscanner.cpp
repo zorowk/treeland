@@ -101,6 +101,9 @@ private:
     findChildInterfaces(const std::vector<WaylandInterface> &interfaces,
                         const WaylandInterface &parent) const;
     static QByteArray childAdapterPrefix(const QByteArray &interfaceName);
+    bool needsPerEventStructs(const WaylandInterface &iface) const;
+    static QByteArray perEventCFieldType(const WaylandArgument &argument);
+    static bool perEventFieldNeedsCleanup(const WaylandArgument &argument);
 
     enum Option
     {
@@ -240,7 +243,7 @@ Scanner::WaylandEvent Scanner::readEvent(QXmlStreamReader &xml, bool request)
                 .type = byteArrayValue(xml, "type"),
                 .interface = byteArrayValue(xml, "interface"),
                 .summary = byteArrayValue(xml, "summary"),
-                .allowNull = boolValue(xml, "allowNull"),
+                .allowNull = boolValue(xml, "allow-null"),
             };
             event.arguments.push_back(std::move(argument));
         }
@@ -521,6 +524,44 @@ QByteArray Scanner::childAdapterPrefix(const QByteArray &interfaceName)
     return name;
 }
 
+bool Scanner::needsPerEventStructs(const WaylandInterface &iface) const
+{
+    for (const WaylandEvent &event : iface.events) {
+        if (event.arguments.size() > 1)
+            return true;
+        for (const WaylandArgument &arg : event.arguments) {
+            if (arg.type == "int" || arg.type == "string")
+                return true;
+        }
+    }
+    return false;
+}
+
+QByteArray Scanner::perEventCFieldType(const WaylandArgument &argument)
+{
+    if (argument.type == "uint" || argument.type == "enum")
+        return "uint32_t";
+    if (argument.type == "int")
+        return "int32_t";
+    if (argument.type == "string")
+        return "char *";
+    if (argument.type == "fixed")
+        return "wl_fixed_t";
+    if (argument.type == "fd")
+        return "int";
+    if (argument.type == "object" || argument.type == "new_id") {
+        if (argument.interface.isEmpty())
+            return "struct wl_proxy *";
+        return "struct " + argument.interface + " *";
+    }
+    return argument.type;
+}
+
+bool Scanner::perEventFieldNeedsCleanup(const WaylandArgument &argument)
+{
+    return argument.type == "string";
+}
+
 void Scanner::printTestClientHeader(const std::vector<WaylandInterface> &interfaces)
 {
     const WaylandInterface *target = nullptr;
@@ -553,6 +594,16 @@ void Scanner::printTestClientHeader(const std::vector<WaylandInterface> &interfa
     printf("    const char *name;\n    uint8_t *data;\n    size_t size;\n};\n\n");
     printf("struct %s_fd_event {\n", adapter.constData());
     printf("    const char *name;\n    int fd;\n};\n\n");
+    if (needsPerEventStructs(*target)) {
+        for (const WaylandEvent &event : target->events) {
+            printf("struct %s_%s_event {\n", adapter.constData(), event.name.constData());
+            for (const WaylandArgument &argument : event.arguments) {
+                QByteArray ctype = perEventCFieldType(argument);
+                printf("    %s %s;\n", ctype.constData(), argument.name.constData());
+            }
+            printf("};\n\n");
+        }
+    }
     printf("struct %s_adapter {\n", adapter.constData());
     printf("    struct %s *proxy;\n", target->name.constData());
     printf("    uint32_t global_name;\n    uint32_t advertised_version;\n");
@@ -574,6 +625,14 @@ void Scanner::printTestClientHeader(const std::vector<WaylandInterface> &interfa
         printf("    bool %s_listener_installed;\n", prefix.constData());
         printf("    uint32_t %s_events[%s];\n", prefix.constData(), maxEvents.constData());
         printf("    size_t %s_event_count;\n", prefix.constData());
+    }
+    if (needsPerEventStructs(*target)) {
+        for (const WaylandEvent &event : target->events) {
+            printf("    struct %s_%s_event %s_events[%s];\n",
+                   adapter.constData(), event.name.constData(),
+                   event.name.constData(), maxEvents.constData());
+            printf("    size_t %s_event_count;\n", event.name.constData());
+        }
     }
     printf("    bool protocol_destructor_sent;\n};\n\n");
     printf("void %s_adapter_init(struct %s_adapter *adapter);\n", adapter.constData(), adapter.constData());
@@ -744,6 +803,27 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
                 printf("    (void)%s;\n", childArg->name.constData());
             }
         }
+        else if (needsPerEventStructs(*target)) {
+            printf("    if (adapter->%s_event_count >= %s) {\n"
+                   "        adapter->event_snapshot_failed = true;\n"
+                   "        return;\n"
+                   "    }\n"
+                   "    struct %s_%s_event *e = "
+                   "&adapter->%s_events[adapter->%s_event_count];\n",
+                   event.name.constData(), maxEvents.constData(),
+                   adapter.constData(), event.name.constData(),
+                   event.name.constData(), event.name.constData());
+            for (const WaylandArgument &argument : event.arguments) {
+                if (argument.type == "string")
+                    printf("    e->%s = %s ? strdup(%s) : NULL;\n",
+                           argument.name.constData(), argument.name.constData(),
+                           argument.name.constData());
+                else
+                    printf("    e->%s = %s;\n",
+                           argument.name.constData(), argument.name.constData());
+            }
+            printf("    adapter->%s_event_count++;\n", event.name.constData());
+        }
         else {
             for (const WaylandArgument &argument : event.arguments)
                 printf("    (void)%s;\n", argument.name.constData());
@@ -796,12 +876,24 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
            "            close(adapter->fd_events[i].fd);\n"
            "            adapter->fd_events[i].fd = -1;\n"
            "        }\n"
-           "    }\n"
-           "    adapter->event_count = 0;\n"
+           "    }\n",
+           adapter.constData(), adapter.constData());
+    if (needsPerEventStructs(*target)) {
+        for (const WaylandEvent &event : target->events) {
+            for (const WaylandArgument &argument : event.arguments) {
+                if (perEventFieldNeedsCleanup(argument))
+                    printf("    for (size_t i = 0; i < adapter->%s_event_count; ++i)\n"
+                           "        free((void *)adapter->%s_events[i].%s);\n",
+                           event.name.constData(), event.name.constData(),
+                           argument.name.constData());
+            }
+            printf("    adapter->%s_event_count = 0;\n", event.name.constData());
+        }
+    }
+    printf("    adapter->event_count = 0;\n"
            "    adapter->fixed_event_count = 0;\n"
            "    adapter->array_event_count = 0;\n"
-           "    adapter->fd_event_count = 0;\n",
-           adapter.constData(), adapter.constData());
+           "    adapter->fd_event_count = 0;\n");
     for (const WaylandInterface *child : children) {
         const QByteArray prefix = childAdapterPrefix(child->name);
         printf("    if (adapter->%s_proxy) {\n"
@@ -865,11 +957,26 @@ void Scanner::printTestClientMetadata(const std::vector<WaylandInterface> &inter
             }
             return result;
         };
+        QJsonArray enumArray;
+        for (const WaylandEnum &e : interface.enums) {
+            QJsonArray entries;
+            for (const WaylandEnumEntry &entry : e.entries) {
+                entries.append(QJsonObject{
+                    { QStringLiteral("name"), QString::fromUtf8(entry.name) },
+                    { QStringLiteral("value"), QString::fromUtf8(entry.value) },
+                });
+            }
+            enumArray.append(QJsonObject{
+                { QStringLiteral("name"), QString::fromUtf8(e.name) },
+                { QStringLiteral("entries"), entries },
+            });
+        }
         interfaceArray.append(QJsonObject{
             { QStringLiteral("name"), QString::fromUtf8(interface.name) },
             { QStringLiteral("version"), interface.version },
             { QStringLiteral("requests"), operations(interface.requests) },
             { QStringLiteral("events"), operations(interface.events) },
+            { QStringLiteral("enums"), enumArray },
         });
     }
     const QJsonObject root{

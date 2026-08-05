@@ -357,6 +357,61 @@ set_tests_properties(protocol-new-id-adapter-selftest PROPERTIES
     LABELS "protocol-wire;generated-adapter;mvp-d4d"
     TIMEOUT 10
 )
+
+set(multi_arg_test_xml ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/treeland-test-multi-arg-v1.xml)
+set(multi_arg_generated_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-test-multi-arg-v1)
+set(multi_arg_client_header
+    ${multi_arg_generated_directory}/wayland-treeland-test-multi-arg-v1-client-protocol.h)
+set(multi_arg_client_code
+    ${multi_arg_generated_directory}/wayland-treeland-test-multi-arg-v1-client-protocol.c)
+set(multi_arg_server_header
+    ${multi_arg_generated_directory}/wayland-treeland-test-multi-arg-v1-server-protocol.h)
+set(multi_arg_adapter_header ${multi_arg_generated_directory}/tl-test-treeland-test-multi-arg-v1.h)
+set(multi_arg_adapter_code ${multi_arg_generated_directory}/tl-test-treeland-test-multi-arg-v1.c)
+set(multi_arg_adapter_metadata
+    ${multi_arg_generated_directory}/tl-test-treeland-test-multi-arg-v1-metadata.json)
+
+add_custom_command(
+    OUTPUT
+        ${multi_arg_client_header}
+        ${multi_arg_client_code}
+        ${multi_arg_server_header}
+        ${multi_arg_adapter_header}
+        ${multi_arg_adapter_code}
+        ${multi_arg_adapter_metadata}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${multi_arg_generated_directory}
+    COMMAND ${WAYLAND_SCANNER} client-header ${multi_arg_test_xml} ${multi_arg_client_header}
+    COMMAND ${WAYLAND_SCANNER} private-code ${multi_arg_test_xml} ${multi_arg_client_code}
+    COMMAND ${WAYLAND_SCANNER} server-header ${multi_arg_test_xml} ${multi_arg_server_header}
+    COMMAND qtwaylandscanner_treeland test-client-header ${multi_arg_test_xml}
+        > ${multi_arg_adapter_header}
+    COMMAND qtwaylandscanner_treeland test-client-code ${multi_arg_test_xml}
+        > ${multi_arg_adapter_code}
+    COMMAND qtwaylandscanner_treeland test-client-metadata ${multi_arg_test_xml}
+        > ${multi_arg_adapter_metadata}
+    DEPENDS ${multi_arg_test_xml} qtwaylandscanner_treeland
+    VERBATIM
+)
+
+add_executable(protocol-multi-arg-adapter-selftest
+    multiargadapterselftest.cpp
+    ${multi_arg_client_header}
+    ${multi_arg_client_code}
+    ${multi_arg_server_header}
+    ${multi_arg_adapter_header}
+    ${multi_arg_adapter_code}
+)
+target_include_directories(protocol-multi-arg-adapter-selftest PRIVATE ${multi_arg_generated_directory})
+target_compile_definitions(protocol-multi-arg-adapter-selftest
+    PRIVATE TL_MULTI_ARG_TEST_METADATA="${multi_arg_adapter_metadata}")
+target_link_libraries(protocol-multi-arg-adapter-selftest
+    PRIVATE Qt6::Test PkgConfig::WAYLAND_CLIENT PkgConfig::WAYLAND_SERVER)
+
+add_test(NAME protocol-multi-arg-adapter-selftest COMMAND protocol-multi-arg-adapter-selftest)
+set_tests_properties(protocol-multi-arg-adapter-selftest PROPERTIES
+    LABELS "protocol-wire;generated-adapter;mvp-d4e"
+    TIMEOUT 10
+)
 set_tests_properties(protocol-window-management-generated-adapter-output PROPERTIES
     LABELS "protocol-scanner;generated-adapter"
     TIMEOUT 10

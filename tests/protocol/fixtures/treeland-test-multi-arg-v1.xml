@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 OR LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only -->
+<protocol name="treeland_test_multi_arg_v1">
+  <interface name="treeland_test_multi_arg_v1" version="1">
+    <description summary="multi-argument event protocol test fixture">
+      Exercises per-event struct generation with int, string, and enum types.
+    </description>
+    <request name="echo">
+      <arg name="id" type="uint"/>
+      <arg name="offset" type="int"/>
+      <arg name="name" type="string" allow-null="true"/>
+    </request>
+    <request name="destroy" type="destructor"/>
+    <event name="reply">
+      <arg name="id" type="uint"/>
+      <arg name="offset" type="int"/>
+      <arg name="name" type="string" allow-null="true"/>
+    </event>
+    <enum name="test_kind">
+      <entry name="alpha" value="0"/>
+      <entry name="beta" value="1"/>
+      <entry name="gamma" value="2"/>
+    </enum>
+  </interface>
+</protocol>
