@@ -24,6 +24,7 @@ struct ProtocolJsonRunResult
 };
 
 ProtocolJsonRunResult runProtocolJsonCase(const ProtocolJsonCase &testCase);
+ProtocolJsonRunResult runGenericProtocolJsonCase(const ProtocolJsonCase &testCase);
 ProtocolJsonRunResult validationFailureResult(const QString &caseId,
                                               const ProtocolJsonValidationError &error);
 bool writeProtocolJsonArtifacts(const ProtocolJsonRunResult &result,

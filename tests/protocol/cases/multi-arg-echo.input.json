@@ -1,0 +1,23 @@
+{
+  "case": "multi-arg.echo-roundtrip",
+  "protocol": "treeland_test_multi_arg_v1",
+  "steps": [
+    {
+      "type": "barrier",
+      "barrier_type": "client_roundtrip"
+    },
+    {
+      "type": "request",
+      "name": "echo",
+      "args": [42, -7, "hello"]
+    },
+    {
+      "type": "barrier",
+      "barrier_type": "client_roundtrip"
+    },
+    {
+      "type": "checkpoint",
+      "name": "echoed"
+    }
+  ]
+}

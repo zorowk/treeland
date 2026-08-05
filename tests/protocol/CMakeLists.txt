@@ -412,6 +412,21 @@ set_tests_properties(protocol-multi-arg-adapter-selftest PROPERTIES
     LABELS "protocol-wire;generated-adapter;mvp-d4e"
     TIMEOUT 10
 )
+add_test(
+    NAME protocol-json-runner-multi-arg-echo
+    COMMAND treeland-protocol-test-runner
+        --input ${CMAKE_CURRENT_SOURCE_DIR}/cases/multi-arg-echo.input.json
+        --expected ${CMAKE_CURRENT_SOURCE_DIR}/cases/multi-arg-echo.expected.json
+        --metadata ${multi_arg_adapter_metadata}
+        --protocol-xml ${multi_arg_test_xml}
+        --dump-actual ${CMAKE_CURRENT_BINARY_DIR}/test-results/d4g/multi-arg-echo.actual.json
+        --report-dir ${CMAKE_CURRENT_BINARY_DIR}/test-results/d4g/multi-arg-echo
+)
+set_tests_properties(protocol-json-runner-multi-arg-echo PROPERTIES
+    LABELS "protocol-wire;json-runner;mvp-d4g"
+    TIMEOUT 10
+)
+
 
 set(obj_newid_test_xml ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/treeland-test-object-newid-v1.xml)
 set(obj_newid_generated_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-test-object-newid-v1)
@@ -580,8 +595,12 @@ add_executable(treeland-protocol-test-runner
     wineprotocoljsonscenario.h
     winemulticlientscenario.cpp
     winemulticlientscenario.h
+    genericprotocoljsonscenario.cpp
+    ${multi_arg_client_code}
+    ${multi_arg_adapter_code}
     ${CMAKE_BINARY_DIR}/src/modules/window-management/qwayland-server-treeland-window-management-v1.cpp
 )
+target_include_directories(treeland-protocol-test-runner PRIVATE ${multi_arg_generated_directory})
 target_link_libraries(treeland-protocol-test-runner
     PRIVATE
         protocol-window-management-generated-client-runtime

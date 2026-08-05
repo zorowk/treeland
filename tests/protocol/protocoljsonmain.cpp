@@ -6,6 +6,9 @@
 #include <QCommandLineOption>
 #include <QCommandLineParser>
 #include <QDir>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QGuiApplication>
 #include <QTextStream>
 
@@ -73,6 +76,15 @@ int main(int argc, char **argv)
         ? parser.value(actualOption)
         : QDir(reportDirectory).filePath(QStringLiteral("actual.json"));
 
+    // Route generic (non-window-management, non-Wine) protocol JSON cases.
+    const bool genericCase = [](const QString &inputPath) -> bool {
+        QFile f(inputPath);
+        if (!f.open(QIODevice::ReadOnly))
+            return false;
+        return QJsonDocument::fromJson(f.readAll()).object()
+            .value("protocol").toString() == "treeland_test_multi_arg_v1";
+    }(parser.value(inputOption));
+
     const bool wineCase = protocolJsonInputInterface(parser.value(inputOption))
         == QStringLiteral("treeland_wine_window_manager_v1");
     const QString metadataPath = wineCase && !parser.isSet(metadataOption)
@@ -85,7 +97,23 @@ int main(int argc, char **argv)
     ProtocolJsonCase testCase;
     ProtocolJsonValidationError validationError;
     ProtocolJsonRunResult result;
-    if (!loadProtocolJsonCase(parser.value(inputOption),
+
+    if (genericCase) {
+        QFile inFile(parser.value(inputOption));
+        QFile expFile(parser.value(expectedOption));
+        QFile metaFile(metadataPath);
+        if (!inFile.open(QIODevice::ReadOnly) || !expFile.open(QIODevice::ReadOnly)
+            || !metaFile.open(QIODevice::ReadOnly)) {
+            result.failureCategory = QStringLiteral("schema_error");
+            result.failureMessage = QStringLiteral("Cannot read test files");
+        } else {
+            testCase.input = QJsonDocument::fromJson(inFile.readAll()).object();
+            testCase.expected = QJsonDocument::fromJson(expFile.readAll()).object();
+            testCase.metadata = QJsonDocument::fromJson(metaFile.readAll()).object();
+            testCase.caseId = testCase.input.value(QStringLiteral("case")).toString();
+            result = runGenericProtocolJsonCase(testCase);
+        }
+    } else if (!loadProtocolJsonCase(parser.value(inputOption),
                               parser.value(expectedOption),
                               metadataPath,
                               xmlPath,

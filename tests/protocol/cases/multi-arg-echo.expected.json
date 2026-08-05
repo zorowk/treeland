@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "case": "multi-arg.echo-roundtrip",
+  "expectation_source": {
+    "generated_by": "human",
+    "based_on": ["xml-description", "server-contract"],
+    "xml_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "server_commit": "0000000000000000000000000000000000000000",
+    "review_status": "human-reviewed"
+  },
+  "checkpoints": {
+    "echoed": {
+      "connection": {
+        "display_error": 0,
+        "protocol_error": {
+          "occurred": false
+        }
+      },
+      "client_events": {
+        "ordered": [
+          {
+            "object": "manager",
+            "event": "reply",
+            "args": [
+              { "type": "uint", "value": 42 },
+              { "type": "int", "value": -7 },
+              { "type": "string", "value": "hello" }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
