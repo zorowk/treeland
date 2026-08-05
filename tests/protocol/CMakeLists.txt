@@ -412,6 +412,61 @@ set_tests_properties(protocol-multi-arg-adapter-selftest PROPERTIES
     LABELS "protocol-wire;generated-adapter;mvp-d4e"
     TIMEOUT 10
 )
+
+set(obj_newid_test_xml ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/treeland-test-object-newid-v1.xml)
+set(obj_newid_generated_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-test-object-newid-v1)
+set(obj_newid_client_header
+    ${obj_newid_generated_directory}/wayland-treeland-test-object-newid-v1-client-protocol.h)
+set(obj_newid_client_code
+    ${obj_newid_generated_directory}/wayland-treeland-test-object-newid-v1-client-protocol.c)
+set(obj_newid_server_header
+    ${obj_newid_generated_directory}/wayland-treeland-test-object-newid-v1-server-protocol.h)
+set(obj_newid_adapter_header ${obj_newid_generated_directory}/tl-test-treeland-test-object-newid-v1.h)
+set(obj_newid_adapter_code ${obj_newid_generated_directory}/tl-test-treeland-test-object-newid-v1.c)
+set(obj_newid_adapter_metadata
+    ${obj_newid_generated_directory}/tl-test-treeland-test-object-newid-v1-metadata.json)
+
+add_custom_command(
+    OUTPUT
+        ${obj_newid_client_header}
+        ${obj_newid_client_code}
+        ${obj_newid_server_header}
+        ${obj_newid_adapter_header}
+        ${obj_newid_adapter_code}
+        ${obj_newid_adapter_metadata}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${obj_newid_generated_directory}
+    COMMAND ${WAYLAND_SCANNER} client-header ${obj_newid_test_xml} ${obj_newid_client_header}
+    COMMAND ${WAYLAND_SCANNER} private-code ${obj_newid_test_xml} ${obj_newid_client_code}
+    COMMAND ${WAYLAND_SCANNER} server-header ${obj_newid_test_xml} ${obj_newid_server_header}
+    COMMAND qtwaylandscanner_treeland test-client-header ${obj_newid_test_xml}
+        > ${obj_newid_adapter_header}
+    COMMAND qtwaylandscanner_treeland test-client-code ${obj_newid_test_xml}
+        > ${obj_newid_adapter_code}
+    COMMAND qtwaylandscanner_treeland test-client-metadata ${obj_newid_test_xml}
+        > ${obj_newid_adapter_metadata}
+    DEPENDS ${obj_newid_test_xml} qtwaylandscanner_treeland
+    VERBATIM
+)
+
+add_executable(protocol-object-newid-adapter-selftest
+    objectnewidadapterselftest.cpp
+    ${obj_newid_client_header}
+    ${obj_newid_client_code}
+    ${obj_newid_server_header}
+    ${obj_newid_adapter_header}
+    ${obj_newid_adapter_code}
+)
+target_include_directories(protocol-object-newid-adapter-selftest PRIVATE ${obj_newid_generated_directory})
+target_compile_definitions(protocol-object-newid-adapter-selftest
+    PRIVATE TL_OBJECT_NEWID_TEST_METADATA="${obj_newid_adapter_metadata}")
+target_link_libraries(protocol-object-newid-adapter-selftest
+    PRIVATE Qt6::Test PkgConfig::WAYLAND_CLIENT PkgConfig::WAYLAND_SERVER)
+
+add_test(NAME protocol-object-newid-adapter-selftest COMMAND protocol-object-newid-adapter-selftest)
+set_tests_properties(protocol-object-newid-adapter-selftest PROPERTIES
+    LABELS "protocol-wire;generated-adapter;mvp-d4f"
+    TIMEOUT 10
+)
 set_tests_properties(protocol-window-management-generated-adapter-output PROPERTIES
     LABELS "protocol-scanner;generated-adapter"
     TIMEOUT 10
