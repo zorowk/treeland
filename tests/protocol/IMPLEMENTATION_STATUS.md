@@ -1,8 +1,8 @@
 # Treeland Wayland Protocol Test Implementation Status
 
 Current stage: MVP-D4g (JSON runner full type integration)
-State: awaiting_human_validation
-Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2, MVP-D3, MVP-D4a, MVP-D4b, MVP-D4c, MVP-D4d, MVP-D4e, MVP-D4f]
+State: accepted
+Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2, MVP-D3, MVP-D4a, MVP-D4b, MVP-D4c, MVP-D4d, MVP-D4e, MVP-D4f, MVP-D4g]
 
 Stage commits (D4f and prior):
 - `4b328d7b4` test(protocol): accept MVP-D4f object + request new_id stage
@@ -37,7 +37,7 @@ ctest --test-dir build-feat-testprotocol \
   --output-on-failure
 ```
 
-Human validation: pending
+Human validation: passed
 
 Known issues:
 - D4g 实现了 generic JSON runner 路由和 multi-arg 协议的 checkpoint 收集与比较。
