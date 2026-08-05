@@ -1,0 +1,111 @@
+name: Protocol Tests
+
+on:
+  push:
+    paths:
+      - 'src/modules/tools/qtwaylandscanner.cpp'
+      - 'tests/protocol/**'
+      - '.github/workflows/protocol-test.yml'
+  pull_request:
+    paths:
+      - 'src/modules/tools/qtwaylandscanner.cpp'
+      - 'tests/protocol/**'
+
+jobs:
+  protocol-tests:
+    runs-on: ubuntu-latest
+    container: linuxdeepin/deepin:crimson
+    strategy:
+      matrix:
+        build-type: [Debug, Release]
+        sanitizer: [none, asan]
+        exclude:
+          - build-type: Release
+            sanitizer: asan
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          set -euxo pipefail
+          echo "deb [trusted=yes] http://mirrors.kernel.org/deepin/beige/ crimson main commercial community" > /etc/apt/sources.list
+          echo "deb-src [trusted=yes] http://mirrors.kernel.org/deepin/beige/ crimson main commercial community" >> /etc/apt/sources.list
+          rm -rf /etc/apt/sources.list.d
+          apt-get update
+          apt-get install -y --allow-unauthenticated \
+            build-essential cmake ninja-build pkg-config \
+            qt6-base-dev qt6-declarative-dev qt6-tools-dev \
+            libwayland-dev wayland-protocols \
+            libwlroots-dev libpixman-1-dev \
+            libglib2.0-dev libgsettings-qt-dev \
+            libdtk6core-dev libdtk6gui-dev libdtk6declarative-dev \
+            libgtest-dev libgmock-dev \
+            git ca-certificates
+
+      - name: Install treeland-protocols
+        run: |
+          cd /tmp
+          git clone --depth=1 --branch master https://github.com/linuxdeepin/treeland-protocols.git
+          cd treeland-protocols
+          cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build build
+          cmake --install build
+
+      - name: Configure
+        run: |
+          SANITIZER_FLAGS=""
+          if [ "${{ matrix.sanitizer }}" = "asan" ]; then
+            SANITIZER_FLAGS="-DASanSupport=ON"
+          fi
+          cmake --preset ci \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} \
+            -DWITH_SUBMODULE_WAYLIB=OFF \
+            $SANITIZER_FLAGS
+
+      - name: Build scanner and tests
+        run: |
+          cmake --build --preset ci \
+            --target qtwaylandscanner_treeland \
+            --target treeland-protocol-test-runner \
+            -j$(nproc)
+
+      - name: Build protocol selftests
+        run: |
+          cmake --build --preset ci \
+            --target protocol-array-adapter-selftest \
+            --target protocol-fixed-adapter-selftest \
+            --target protocol-fd-adapter-selftest \
+            --target protocol-new-id-adapter-selftest \
+            --target protocol-multi-arg-adapter-selftest \
+            --target protocol-object-newid-adapter-selftest \
+            --target protocol-global-version-selftest \
+            -j$(nproc)
+
+      - name: Run protocol tests
+        run: |
+          SANITIZER_ENV=""
+          if [ "${{ matrix.sanitizer }}" = "asan" ]; then
+            SANITIZER_ENV="ASAN_OPTIONS=detect_leaks=1:halt_on_error=1:detect_odr_violation=0 LSAN_OPTIONS=exitcode=23:suppressions=$PWD/tests/protocol/lsan-suppressions.txt"
+          fi
+          env $SANITIZER_ENV QT_QPA_PLATFORM=offscreen \
+            ctest --preset ci \
+              -R 'protocol-((array|fixed|fd|new-id|multi-arg|object-newid|global-version)-adapter-selftest|(wire|high)-window-management|window-management-(generated-adapter-output|adapter-contract|json-contract|json-repeatable)|json-runner|wine-window-management)' \
+              --output-on-failure
+
+      - name: Upload test artifacts (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: protocol-test-artifacts-${{ matrix.build-type }}-${{ matrix.sanitizer }}
+          path: build/test-results/
+          retention-days: 7
+
+      - name: Run 100x stability check (Release only)
+        if: matrix.build-type == 'Release' && matrix.sanitizer == 'none'
+        run: |
+          QT_QPA_PLATFORM=offscreen \
+            ctest --preset ci \
+              -L 'protocol-wire|protocol-high' \
+              --repeat until-fail:100 \
+              --output-on-failure \
+              --timeout 600

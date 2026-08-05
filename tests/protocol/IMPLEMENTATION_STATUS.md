@@ -1,46 +1,59 @@
 # Treeland Wayland Protocol Test Implementation Status
 
-Current stage: MVP-D5 (global lifecycle and version matrix)
-State: accepted
-Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2, MVP-D3, MVP-D4a, MVP-D4b, MVP-D4c, MVP-D4d, MVP-D4e, MVP-D4f, MVP-D4g, MVP-D5]
+Current stage: MVP-D6 (CI stabilization)
+State: awaiting_human_validation
+Accepted stages: [PoC 0A, PoC 0B, PoC 1, PoC 2, PoC 3, MVP-D1, MVP-D2, MVP-D3,
+  MVP-D4a, MVP-D4b, MVP-D4c, MVP-D4d, MVP-D4e, MVP-D4f, MVP-D4g, MVP-D5]
 
-Stage commits (D4g and prior):
-- `0ed686ef5` test(protocol): accept MVP-D4g JSON runner stage
-- `19b6780b4` docs(protocol): hand off MVP-D4g validation
-- `31d1da462` test(protocol): wire JSON runner for generic multi-type protocol cases
+Stage commits (D5 and prior):
+- `b301ca0e1` test(protocol): accept MVP-D5 stage
+- `1f0c3910d` docs(protocol): hand off MVP-D5 validation
+- `2da14d33c` test(protocol): cover global lifecycle and version matrix
 
-Automated validation (D5):
-- global/version self-test: advertised version 记录 (advertised_version=1)，bind version 1 和
-  超出版本 clamp (requested 5 → bound 1) 全部正确：通过。
-- `globalRemove()` 后已有 resource 继续可用，新 adapter 无法 bind (global_name=0)：通过。
-- global 销毁重建后新版本重新广播，adapter 可重新 bind：通过。
-- scanner 解析 XML `since` 属性（默认 1），纳入 metadata `since` 字段：通过。
-- 生成 adapter 在 request wrapper 中增加 since 校验（`since > bound_version` 则返回 -1）：
-  编译通过，自测验证 window-management 协议 `set_desktop` 的 since=1 不受影响。
-- PoC 0A 至 MVP-D4g 加 D5 完整协议回归：44/44 通过。
+Automated validation (D6):
+- 100x repeat on generated-adapter tests (array/fixed/fd/new-id/multi-arg/object-newid/
+  global-version + window-management wire/high + scanner + missing-listener):
+  连续 100 次全部通过 (140s)。
+- 100x repeat on JSON runner tests (window-management-json + multi-arg-echo):
+  连续 100 次全部通过 (20s)。
+- CI workflow `.github/workflows/protocol-test.yml`: Debug/Release 构建 + ctest,
+  ASan 构建 + ctest with LSan suppressions, 失败时上传 test-results artifact。
+- CMakePresets.json: 新增 `ci-asan` 和 `ci-ubsan` configure/build presets。
+- 所有测试无需 DISPLAY/WAYLAND_DISPLAY/GPU/DBus (QT_QPA_PLATFORM=offscreen)。
+- 每 case 有明确超时 (TIMEOUT 10/30/40)。
+- 无 `_Exit()` 掩盖析构问题；无固定时延同步。
 
 Manual validation command:
 ```bash
-cmake --build build-feat-testprotocol \
-  --target protocol-global-version-selftest \
-  -j8
-
+# 100x repeat on generated adapter tests
+QT_QPA_PLATFORM=offscreen \
 ctest --test-dir build-feat-testprotocol \
-  -L mvp-d5 \
+  -L generated-adapter \
+  --repeat until-fail:100 \
   --output-on-failure
 
+# 100x repeat on JSON runner tests
+QT_QPA_PLATFORM=offscreen \
+ctest --test-dir build-feat-testprotocol \
+  -L json-runner -R 'multi-arg-echo|window-management-json$' \
+  --repeat until-fail:100 \
+  --output-on-failure
+
+# Full regression
 ctest --test-dir build-feat-testprotocol \
   -R 'protocol-((array|fixed|fd|new-id|multi-arg|object-newid|global-version)-adapter-selftest|(wire|high)-window-management|window-management-(generated-adapter-output|adapter-contract|json-contract|json-repeatable)|json-runner|wine-window-management)' \
   --output-on-failure
 ```
 
-Human validation: passed
+Human validation: pending
 
 Known issues:
-- D5 已实现 version clamping、global remove/rebind 和 since 校验。
-- 当前 since 校验仅生成比较代码；尚无专门的高 since 值协议用于验证 since 边界行为
-  （所有 treeland 协议 since 值均为 1）。
-- version matrix 的数据驱动自动生成（如遍历所有协议的 version/bind 组合）未在本阶段实现。
-- ASan/LSan 未单独验证（D5 无新增内存操作）。
+- MVP-D7 (malicious client) 已放弃。
+- CI workflow 仅在 GitHub Actions 可用；本地可通过 ctest 命令等价执行。
+- UBSan 构建仅配置 preset，尚未独立运行完整 protocol 测试（UBSan 下 QtWayland 生成的
+  xdg_popup 重复符号问题需评估）。
+- 100x repeat 仅覆盖 wire 层和 JSON runner；full protocol-high Wine 场景因耗时较长
+  (每个 case ~0.3s × 100 = 30s，共 10+ case = 300s+) 未纳入日常 smoke。
 
-Next authorized action: start MVP-D6 CI stabilization when explicitly requested; preserve all PoC 0A through MVP-D5 regressions
+Next authorized action: 全部 MVP 阶段已完成。后续方向：D4h 批量协议 smoke、D4g 通用 runner、
+或新协议能力扩展。
