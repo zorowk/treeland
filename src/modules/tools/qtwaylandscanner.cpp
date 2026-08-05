@@ -511,6 +511,8 @@ void Scanner::printTestClientHeader(const std::vector<WaylandInterface> &interfa
     printf("    const char *name;\n    wl_fixed_t raw;\n};\n\n");
     printf("struct %s_array_event {\n", adapter.constData());
     printf("    const char *name;\n    uint8_t *data;\n    size_t size;\n};\n\n");
+    printf("struct %s_fd_event {\n", adapter.constData());
+    printf("    const char *name;\n    int fd;\n};\n\n");
     printf("struct %s_adapter {\n", adapter.constData());
     printf("    struct %s *proxy;\n", target->name.constData());
     printf("    uint32_t global_name;\n    uint32_t advertised_version;\n");
@@ -522,7 +524,10 @@ void Scanner::printTestClientHeader(const std::vector<WaylandInterface> &interfa
     printf("    size_t fixed_event_count;\n");
     printf("    struct %s_array_event array_events[%s];\n",
            adapter.constData(), maxEvents.constData());
-    printf("    size_t array_event_count;\n    bool event_snapshot_failed;\n");
+    printf("    size_t array_event_count;\n");
+    printf("    struct %s_fd_event fd_events[%s];\n",
+           adapter.constData(), maxEvents.constData());
+    printf("    size_t fd_event_count;\n    bool event_snapshot_failed;\n");
     printf("    bool protocol_destructor_sent;\n};\n\n");
     printf("void %s_adapter_init(struct %s_adapter *adapter);\n", adapter.constData(), adapter.constData());
     printf("void %s_adapter_fini(struct %s_adapter *adapter);\n", adapter.constData(), adapter.constData());
@@ -558,7 +563,7 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
     const QByteArray basename = QByteArray(m_protocolName).replace('_', '-');
     printf("#include \"tl-test-%s.h\"\n", basename.constData());
     printf("#include \"wayland-%s-client-protocol.h\"\n\n", basename.constData());
-    printf("#include <stdlib.h>\n#include <string.h>\n#include <wayland-client.h>\n\n");
+    printf("#include <stdlib.h>\n#include <string.h>\n#include <unistd.h>\n#include <fcntl.h>\n#include <wayland-client.h>\n\n");
 
     for (const WaylandEvent &event : target->events) {
         printf("static void handle_%s(void *data, struct %s *proxy",
@@ -609,6 +614,24 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
                    event.arguments.front().name.constData(),
                    event.arguments.front().name.constData(), event.name.constData(),
                    event.arguments.front().name.constData());
+        else if (event.arguments.size() == 1 && event.arguments.front().type == "fd")
+            printf("    if (%s < 0 || adapter->fd_event_count >= %s) {\n"
+                   "        adapter->event_snapshot_failed = true;\n"
+                   "        return;\n"
+                   "    }\n"
+                   "    int owned = fcntl(%s, F_DUPFD_CLOEXEC, 0);\n"
+                   "    if (owned < 0) {\n"
+                   "        adapter->event_snapshot_failed = true;\n"
+                   "        return;\n"
+                   "    }\n"
+                   "    struct %s_fd_event *event = "
+                   "&adapter->fd_events[adapter->fd_event_count];\n"
+                   "    event->name = \"%s\";\n"
+                   "    event->fd = owned;\n"
+                   "    adapter->fd_event_count++;\n",
+                   event.arguments.front().name.constData(), maxEvents.constData(),
+                   event.arguments.front().name.constData(),
+                   adapter.constData(), event.name.constData());
         else {
             for (const WaylandArgument &argument : event.arguments)
                 printf("    (void)%s;\n", argument.name.constData());
@@ -656,9 +679,16 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
            "        adapter->array_events[i].data = NULL;\n"
            "        adapter->array_events[i].size = 0;\n"
            "    }\n"
+           "    for (size_t i = 0; i < adapter->fd_event_count; ++i) {\n"
+           "        if (adapter->fd_events[i].fd >= 0) {\n"
+           "            close(adapter->fd_events[i].fd);\n"
+           "            adapter->fd_events[i].fd = -1;\n"
+           "        }\n"
+           "    }\n"
            "    adapter->event_count = 0;\n"
            "    adapter->fixed_event_count = 0;\n"
            "    adapter->array_event_count = 0;\n"
+           "    adapter->fd_event_count = 0;\n"
            "    adapter->event_snapshot_failed = false;\n}\n",
            adapter.constData(), adapter.constData());
 

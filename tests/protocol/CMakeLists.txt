@@ -245,6 +245,63 @@ set_tests_properties(protocol-array-adapter-selftest PROPERTIES
     LABELS "protocol-wire;generated-adapter;mvp-d4b-accepted"
     TIMEOUT 10
 )
+
+set(fd_test_xml ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/treeland-test-fd-v1.xml)
+set(fd_generated_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-test-fd-v1)
+set(fd_client_header
+    ${fd_generated_directory}/wayland-treeland-test-fd-v1-client-protocol.h)
+set(fd_client_code
+    ${fd_generated_directory}/wayland-treeland-test-fd-v1-client-protocol.c)
+set(fd_server_header
+    ${fd_generated_directory}/wayland-treeland-test-fd-v1-server-protocol.h)
+set(fd_adapter_header ${fd_generated_directory}/tl-test-treeland-test-fd-v1.h)
+set(fd_adapter_code ${fd_generated_directory}/tl-test-treeland-test-fd-v1.c)
+set(fd_adapter_metadata
+    ${fd_generated_directory}/tl-test-treeland-test-fd-v1-metadata.json)
+
+add_custom_command(
+    OUTPUT
+        ${fd_client_header}
+        ${fd_client_code}
+        ${fd_server_header}
+        ${fd_adapter_header}
+        ${fd_adapter_code}
+        ${fd_adapter_metadata}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${fd_generated_directory}
+    COMMAND ${WAYLAND_SCANNER} client-header ${fd_test_xml} ${fd_client_header}
+    COMMAND ${WAYLAND_SCANNER} private-code ${fd_test_xml} ${fd_client_code}
+    COMMAND ${WAYLAND_SCANNER} server-header ${fd_test_xml} ${fd_server_header}
+    COMMAND qtwaylandscanner_treeland test-client-header ${fd_test_xml}
+        > ${fd_adapter_header}
+    COMMAND qtwaylandscanner_treeland test-client-code ${fd_test_xml}
+        > ${fd_adapter_code}
+    COMMAND qtwaylandscanner_treeland test-client-metadata ${fd_test_xml}
+        > ${fd_adapter_metadata}
+    DEPENDS ${fd_test_xml} qtwaylandscanner_treeland
+    VERBATIM
+)
+
+add_executable(protocol-fd-adapter-selftest
+    fdadapterselftest.cpp
+    protocolfdvalue.cpp
+    protocolfdvalue.h
+    ${fd_client_header}
+    ${fd_client_code}
+    ${fd_server_header}
+    ${fd_adapter_header}
+    ${fd_adapter_code}
+)
+target_include_directories(protocol-fd-adapter-selftest PRIVATE ${fd_generated_directory})
+target_compile_definitions(protocol-fd-adapter-selftest
+    PRIVATE TL_FD_TEST_METADATA="${fd_adapter_metadata}")
+target_link_libraries(protocol-fd-adapter-selftest
+    PRIVATE Qt6::Test PkgConfig::WAYLAND_CLIENT PkgConfig::WAYLAND_SERVER)
+
+add_test(NAME protocol-fd-adapter-selftest COMMAND protocol-fd-adapter-selftest)
+set_tests_properties(protocol-fd-adapter-selftest PROPERTIES
+    LABELS "protocol-wire;generated-adapter;mvp-d4c"
+    TIMEOUT 10
+)
 set_tests_properties(protocol-window-management-generated-adapter-output PROPERTIES
     LABELS "protocol-scanner;generated-adapter"
     TIMEOUT 10
