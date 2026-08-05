@@ -97,6 +97,10 @@ private:
     QByteArray testAdapterName(const QByteArray &interfaceName) const;
     QByteArray testClientCType(const WaylandArgument &argument) const;
     bool ignoreInterface(const QByteArray &name);
+    std::vector<const WaylandInterface *>
+    findChildInterfaces(const std::vector<WaylandInterface> &interfaces,
+                        const WaylandInterface &parent) const;
+    static QByteArray childAdapterPrefix(const QByteArray &interfaceName);
 
     enum Option
     {
@@ -485,6 +489,38 @@ QByteArray Scanner::testClientCType(const WaylandArgument &argument) const
     return argument.type;
 }
 
+
+std::vector<const Scanner::WaylandInterface *>
+Scanner::findChildInterfaces(const std::vector<WaylandInterface> &interfaces,
+                             const WaylandInterface &parent) const
+{
+    std::vector<const WaylandInterface *> children;
+    for (const WaylandEvent &event : parent.events) {
+        for (const WaylandArgument &arg : event.arguments) {
+            if (arg.type != "new_id" || arg.interface.isEmpty())
+                continue;
+            for (const WaylandInterface &iface : interfaces) {
+                if (iface.name == arg.interface) {
+                    children.push_back(&iface);
+                    break;
+                }
+            }
+        }
+    }
+    return children;
+}
+
+QByteArray Scanner::childAdapterPrefix(const QByteArray &interfaceName)
+{
+    QByteArray name = interfaceName;
+    if (name.startsWith("treeland_"))
+        name = name.mid(9);
+    int pos = name.lastIndexOf("_v");
+    if (pos > 0)
+        name = name.left(pos);
+    return name;
+}
+
 void Scanner::printTestClientHeader(const std::vector<WaylandInterface> &interfaces)
 {
     const WaylandInterface *target = nullptr;
@@ -497,13 +533,17 @@ void Scanner::printTestClientHeader(const std::vector<WaylandInterface> &interfa
     if (!target)
         return;
 
+    const auto children = findChildInterfaces(interfaces, *target);
     const QByteArray adapter = testAdapterName(target->name);
     const QByteArray guard = (adapter + "_TEST_ADAPTER_H").toUpper();
     printf("#ifndef %s\n#define %s\n\n", guard.constData(), guard.constData());
     printf("#include <stdbool.h>\n#include <stddef.h>\n#include <stdint.h>\n");
     printf("#include <wayland-util.h>\n\n");
-    printf("struct wl_registry;\nstruct wl_registry_listener;\nstruct %s;\n\n",
+    printf("struct wl_registry;\nstruct wl_registry_listener;\nstruct %s;\n",
            target->name.constData());
+    for (const WaylandInterface *child : children)
+        printf("struct %s;\n", child->name.constData());
+    printf("\n");
     printf("#ifdef __cplusplus\nextern \"C\" {\n#endif\n\n");
     const QByteArray maxEvents = (adapter + "_MAX_EVENTS").toUpper();
     printf("enum { %s = 8 };\n\n", maxEvents.constData());
@@ -528,6 +568,13 @@ void Scanner::printTestClientHeader(const std::vector<WaylandInterface> &interfa
     printf("    struct %s_fd_event fd_events[%s];\n",
            adapter.constData(), maxEvents.constData());
     printf("    size_t fd_event_count;\n    bool event_snapshot_failed;\n");
+    for (const WaylandInterface *child : children) {
+        const QByteArray prefix = childAdapterPrefix(child->name);
+        printf("    struct %s *%s_proxy;\n", child->name.constData(), prefix.constData());
+        printf("    bool %s_listener_installed;\n", prefix.constData());
+        printf("    uint32_t %s_events[%s];\n", prefix.constData(), maxEvents.constData());
+        printf("    size_t %s_event_count;\n", prefix.constData());
+    }
     printf("    bool protocol_destructor_sent;\n};\n\n");
     printf("void %s_adapter_init(struct %s_adapter *adapter);\n", adapter.constData(), adapter.constData());
     printf("void %s_adapter_fini(struct %s_adapter *adapter);\n", adapter.constData(), adapter.constData());
@@ -564,6 +611,38 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
     printf("#include \"tl-test-%s.h\"\n", basename.constData());
     printf("#include \"wayland-%s-client-protocol.h\"\n\n", basename.constData());
     printf("#include <stdlib.h>\n#include <string.h>\n#include <unistd.h>\n#include <fcntl.h>\n#include <wayland-client.h>\n\n");
+
+    const auto children = findChildInterfaces(interfaces, *target);
+
+    // Generate child event handlers and listener structs.
+    for (const WaylandInterface *child : children) {
+        const QByteArray prefix = childAdapterPrefix(child->name);
+        for (const WaylandEvent &event : child->events) {
+            printf("static void handle_%s_%s(void *data, struct %s *proxy",
+                   prefix.constData(), event.name.constData(), child->name.constData());
+            for (const WaylandArgument &argument : event.arguments) {
+                const QByteArray type = testClientCType(argument);
+                printf(", %s%s%s", type.constData(), type.endsWith('*') ? "" : " ", argument.name.constData());
+            }
+            printf(")\n{\n    struct %s_adapter *adapter = data;\n    (void)proxy;\n", adapter.constData());
+            if (event.arguments.size() == 1 && event.arguments.front().type == "uint")
+                printf("    if (adapter->%s_event_count < %s)\n"
+                       "        adapter->%s_events[adapter->%s_event_count++] = %s;\n",
+                       prefix.constData(), maxEvents.constData(),
+                       prefix.constData(), prefix.constData(),
+                       event.arguments.front().name.constData());
+            else
+                for (const WaylandArgument &argument : event.arguments)
+                    printf("    (void)%s;\n", argument.name.constData());
+            printf("}\n\n");
+        }
+        printf("static const struct %s_listener %s_test_listener = {\n",
+               child->name.constData(), prefix.constData());
+        for (const WaylandEvent &event : child->events)
+            printf("    .%s = handle_%s_%s,\n",
+                   event.name.constData(), prefix.constData(), event.name.constData());
+        printf("};\n\n");
+    }
 
     for (const WaylandEvent &event : target->events) {
         printf("static void handle_%s(void *data, struct %s *proxy",
@@ -632,6 +711,39 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
                    event.arguments.front().name.constData(), maxEvents.constData(),
                    event.arguments.front().name.constData(),
                    adapter.constData(), event.name.constData());
+        else if (event.arguments.size() == 1 && event.arguments.front().type == "new_id"
+                 && !event.arguments.front().interface.isEmpty()) {
+            // Find the child interface matching this new_id argument.
+            const auto *childArg = &event.arguments.front();
+            const WaylandInterface *childIface = nullptr;
+            QByteArray childPrefix;
+            for (const WaylandInterface *c : children) {
+                if (c->name == childArg->interface) {
+                    childIface = c;
+                    childPrefix = childAdapterPrefix(c->name);
+                    break;
+                }
+            }
+            if (childIface) {
+                printf("    if (!%s || adapter->%s_proxy) {\n"
+                       "        adapter->event_snapshot_failed = true;\n"
+                       "        return;\n"
+                       "    }\n"
+                       "    adapter->%s_proxy = %s;\n"
+                       "    if (%s_add_listener(%s, &%s_test_listener, adapter) != 0) {\n"
+                       "        adapter->event_snapshot_failed = true;\n"
+                       "        return;\n"
+                       "    }\n"
+                       "    adapter->%s_listener_installed = true;\n",
+                       childArg->name.constData(), childPrefix.constData(),
+                       childPrefix.constData(), childArg->name.constData(),
+                       childIface->name.constData(), childArg->name.constData(),
+                       childPrefix.constData(),
+                       childPrefix.constData());
+            } else {
+                printf("    (void)%s;\n", childArg->name.constData());
+            }
+        }
         else {
             for (const WaylandArgument &argument : event.arguments)
                 printf("    (void)%s;\n", argument.name.constData());
@@ -688,9 +800,20 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
            "    adapter->event_count = 0;\n"
            "    adapter->fixed_event_count = 0;\n"
            "    adapter->array_event_count = 0;\n"
-           "    adapter->fd_event_count = 0;\n"
-           "    adapter->event_snapshot_failed = false;\n}\n",
+           "    adapter->fd_event_count = 0;\n",
            adapter.constData(), adapter.constData());
+    for (const WaylandInterface *child : children) {
+        const QByteArray prefix = childAdapterPrefix(child->name);
+        printf("    if (adapter->%s_proxy) {\n"
+               "        wl_proxy_destroy((struct wl_proxy *)adapter->%s_proxy);\n"
+               "        adapter->%s_proxy = NULL;\n"
+               "        adapter->%s_listener_installed = false;\n"
+               "    }\n"
+               "    adapter->%s_event_count = 0;\n",
+               prefix.constData(), prefix.constData(), prefix.constData(),
+               prefix.constData(), prefix.constData());
+    }
+    printf("    adapter->event_snapshot_failed = false;\n}\n");
 
     for (const WaylandEvent &request : target->requests) {
         printf("\nint %s_%s(struct %s_adapter *adapter", adapter.constData(), request.name.constData(), adapter.constData());
