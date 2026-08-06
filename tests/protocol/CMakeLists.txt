@@ -182,3 +182,19 @@ endfunction()
 
 add_json_protocol_test(test-wm window_management_xml wm_generated_directory wm_client_code
     "windowmanagementinterfacev1.h" WindowManagementInterfaceV1 window-management)
+
+# ---- Treeland protocol JSON tests (auto-generated) ----
+# Class names confirmed from source headers
+
+add_json_protocol_test(test-appid app_id_resolver_xml app_id_generated_directory app_id_client_code
+    "appidresolver.h" AppIdResolverManager app-id-resolver)
+add_json_protocol_test(test-ddm ddm_xml ddm_generated_directory ddm_client_code
+    "ddminterfacev1.h" DDMInterfaceV1 ddm)
+add_json_protocol_test(test-screensaver screensaver_xml sa_generated_directory sa_client_code
+    "screensaverinterfacev1.h" ScreensaverInterfaceV1 screensaver)
+add_json_protocol_test(test-wallpaper-color wallpaper_color_xml wc_generated_directory wc_client_code
+    "wallpapercolorinterfacev1.h" WallpaperColorInterfaceV1 wallpaper-color)
+add_json_protocol_test(test-virtual-output virtual_output_xml vo_generated_directory vo_client_code
+    "virtualoutputmanagerinterfacev1.h" VirtualOutputInterfaceV1 virtual-output)
+add_json_protocol_test(test-keyboard-state keyboard_state_xml ks_generated_directory ks_client_code
+    "keyboardstatenotifymanagerinterfacev1.h" KeyboardStateWatcherV1 keyboard-state-notify)
