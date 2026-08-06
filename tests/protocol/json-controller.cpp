@@ -1,88 +1,81 @@
-// SPDX-License-Identifier: Apache-2.0 OR LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only
 // JSON-driven protocol test controller.
-// Starts WServer + attach<module>, then spawns gen-test-client per test case.
-// Uses QApplication + nested QEventLoop so server processes events during client wait.
-#include <QApplication>
+// Starts headless treeland once per JSON, runs all test cases against it.
+// Compile with: -DTL_CLIENT_PATH=/path/to/client -DTL_CASE=/path/to/case.json
+// Environment: WLR_BACKENDS=headless QT_QPA_PLATFORM=offscreen
+#include <QCoreApplication>
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
-#include <QEventLoop>
-#include <QTimer>
 #include <QThread>
 
-#include <WServer>
-#include <wsocket.h>
-#ifndef NO_MODULE_ATTACH
-#include TL_MODULE_HEADER_STR
-#endif
-
-#include <unistd.h>
 #include <cstdio>
-
-using namespace WAYLIB_SERVER_NAMESPACE;
+#include <cstdlib>
+#include <unistd.h>
 
 static QList<QPair<QString, QJsonArray>> parseEvents(const QString &out) {
     QList<QPair<QString, QJsonArray>> events;
     for (const QString &line : out.split('\n')) {
-        if (line.startsWith("EVENT ")) {
-            QStringList parts = line.mid(6).split(' ');
-            QString ename = parts.takeFirst();
-            QJsonArray args;
-            for (const QString &f : parts) {
-                int eq = f.indexOf('='); if (eq <= 0) continue;
-                QString val = f.mid(eq + 1);
-                bool ok; double d = val.toDouble(&ok);
-                args.append(QJsonObject{{"value", ok ? QJsonValue(d) : QJsonValue(val)}});
-            }
-            events.append({ename, args});
+        if (!line.startsWith("EVENT ")) continue;
+        QStringList parts = line.mid(6).split(' ');
+        QString ename = parts.takeFirst();
+        QJsonArray args;
+        for (const QString &f : parts) {
+            int eq = f.indexOf('=');
+            if (eq <= 0) continue;
+            QString val = f.mid(eq + 1);
+            bool ok; double d = val.toDouble(&ok);
+            args.append(QJsonObject{{"value", ok ? QJsonValue(d) : QJsonValue(val)}});
         }
+        events.append({ename, args});
     }
     return events;
 }
 
+static QString treelandBin() {
+    return QFileInfo(QString::fromUtf8(TL_CLIENT_PATH)).dir().absolutePath()
+           + "/../../../src/treeland";
+}
+
 int main(int argc, char **argv) {
-    QApplication app(argc, argv);
+    QCoreApplication app(argc, argv);
 
     QFile f(QString::fromUtf8(TL_CASE));
-    if (!f.open(QIODevice::ReadOnly)) { fprintf(stderr, "FAIL: read %s\n", TL_CASE); return 1; }
-    QJsonObject doc = QJsonDocument::fromJson(f.readAll()).object();
-    QJsonArray tests = doc["tests"].toArray();
+    if (!f.open(QIODevice::ReadOnly)) {
+        fprintf(stderr, "FAIL: cannot read %s\n", TL_CASE); return 1;
+    }
+    QJsonArray tests = QJsonDocument::fromJson(f.readAll()).object()["tests"].toArray();
 
+    // ---- Start headless treeland once ----
     char tmpdir[] = "/tmp/treeland-test-XXXXXX";
     if (!mkdtemp(tmpdir)) { perror("mkdtemp"); return 1; }
-    QString baseDir = QString::fromUtf8(tmpdir);
-    QString sockPath = baseDir + "/wayland-0";
+    QString sockPath = QString::fromUtf8(tmpdir) + "/wayland-0";
 
-    auto server = std::make_unique<WServer>();
-    auto sock = std::make_unique<WSocket>(false);
-#ifndef NO_MODULE_ATTACH
-    server->attach<TL_MODULE_CLASS>(server.get());
-#endif
-    if (!sock->autoCreate(baseDir.toUtf8().constData())) {
-        fprintf(stderr, "FAIL: socket create\n"); return 1;
-    }
-    server->addSocket(sock.get());
-    server->start();
+    QProcess compositor;
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.insert("WLR_BACKENDS", "headless");
+    env.insert("QT_QPA_PLATFORM", "offscreen");
+    env.insert("XDG_RUNTIME_DIR", QString::fromUtf8(tmpdir));
+    env.insert("WAYLAND_DISPLAY", "wayland-0");
+    compositor.setProcessEnvironment(env);
+    compositor.start(treelandBin());
 
-    // Wait for socket file to appear
-    {
-        QEventLoop waitLoop;
-        QTimer waitTimer;
-        waitTimer.setSingleShot(true);
-        int count = 0;
-        QObject::connect(&waitTimer, &QTimer::timeout, [&] {
-            if (QFile::exists(sockPath) || ++count > 40) waitLoop.quit();
-            else waitTimer.start(50);
-        });
-        waitTimer.start(50);
-        waitLoop.exec();
+    if (!compositor.waitForStarted(5000)) {
+        fprintf(stderr, "FAIL: treeland start: %s\n", qPrintable(compositor.errorString()));
+        compositor.kill(); rmdir(tmpdir); return 1;
     }
+    for (int i = 0; i < 150 && !QFile::exists(sockPath); i++)
+        QThread::msleep(100);
     if (!QFile::exists(sockPath)) {
-        fprintf(stderr, "FAIL: socket not created\n"); return 1;
+        fprintf(stderr, "FAIL: socket not created\n");
+        compositor.kill(); compositor.waitForFinished(3000);
+        rmdir(tmpdir); return 1;
     }
 
+    // ---- Run all test cases against the same compositor ----
     int passed = 0, failed = 0;
     for (const QJsonValue &tv : tests) {
         QJsonObject test = tv.toObject();
@@ -105,27 +98,18 @@ int main(int argc, char **argv) {
         }
 
         QProcess client;
-        QEventLoop loop;
-        QTimer timeout;
-        timeout.setSingleShot(true);
-        QObject::connect(&client, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), &loop, &QEventLoop::quit);
-        QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
-        timeout.start(5000);
+        client.setProcessEnvironment(env);
         client.start(QString::fromUtf8(TL_CLIENT_PATH), args);
-        loop.exec();
-
-        if (!timeout.isActive()) {
+        if (!client.waitForFinished(5000)) {
             fprintf(stderr, "FAIL [%s]: timeout\n", qPrintable(name));
             client.kill(); failed++; continue;
         }
-        timeout.stop();
         if (client.exitCode() != 0) {
             fprintf(stderr, "FAIL [%s]: exit=%d stderr=%s\n", qPrintable(name),
                     client.exitCode(), qPrintable(client.readAllStandardError()));
             failed++; continue;
         }
         auto events = parseEvents(client.readAllStandardOutput());
-
         bool ok = events.size() == expEvents.size();
         for (int i = 0; i < events.size() && ok; i++) {
             QJsonObject ee = expEvents[i].toObject();
@@ -133,14 +117,17 @@ int main(int argc, char **argv) {
             QJsonArray ea = ee["args"].toArray();
             if (events[i].second.size() != ea.size()) ok = false;
             for (int j = 0; j < ea.size() && ok; j++)
-                if (ea[j].toObject()["value"].toDouble() != events[i].second[j].toObject()["value"].toDouble())
+                if (ea[j].toObject()["value"].toDouble()
+                    != events[i].second[j].toObject()["value"].toDouble())
                     ok = false;
         }
         printf("%s [%s]\n", ok ? "PASS" : "FAIL", qPrintable(name));
         ok ? passed++ : failed++;
     }
     printf("%d/%d passed\n", passed, passed + failed);
-    sock.reset(); server.reset();
+
+    compositor.terminate();
+    if (!compositor.waitForFinished(5000)) { compositor.kill(); compositor.waitForFinished(3000); }
     rmdir(tmpdir);
     return failed ? 1 : 0;
 }

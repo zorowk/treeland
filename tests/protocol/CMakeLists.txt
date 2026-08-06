@@ -1,4 +1,4 @@
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core)
 find_package(TreelandProtocols REQUIRED)
 pkg_search_module(WAYLAND_CLIENT REQUIRED IMPORTED_TARGET wayland-client)
 pkg_search_module(WAYLAND_SERVER REQUIRED IMPORTED_TARGET wayland-server)
@@ -106,7 +106,7 @@ add_gen_client_test(test-object-newid obj_newid_test_xml  obj_newid_generated_di
 # Standard wayland protocols omit "module" -> NO_MODULE_ATTACH
 # ============================================================
 
-function(add_json_protocol_test PROTO_FILE XML_PATH MOD_HEADER MOD_CLASS MOD_DIR)
+function(add_protocol_test PROTO_FILE XML_PATH)
     get_filename_component(NAME_BASE "${XML_PATH}" NAME_WE)
     string(REPLACE "-" "_" PVAR "${NAME_BASE}")
     set(GEN_D "${CMAKE_CURRENT_BINARY_DIR}/generated/${NAME_BASE}")
@@ -131,49 +131,14 @@ function(add_json_protocol_test PROTO_FILE XML_PATH MOD_HEADER MOD_CLASS MOD_DIR
     add_executable("${PROTO_FILE}-json-test" json-controller.cpp)
     target_compile_definitions("${PROTO_FILE}-json-test" PRIVATE
         TL_CLIENT_PATH="${GEN_BIN}"
-        TL_CASE="${CMAKE_CURRENT_SOURCE_DIR}/cases/${PROTO_FILE}.json"
-        TL_MODULE_HEADER_STR="${MOD_HEADER}"
-        TL_MODULE_CLASS=${MOD_CLASS})
-    target_include_directories("${PROTO_FILE}-json-test" PRIVATE "${CMAKE_SOURCE_DIR}/src/modules/${MOD_DIR}")
-    target_link_libraries("${PROTO_FILE}-json-test" PRIVATE Qt6::Widgets libtreeland)
+        TL_CASE="${CMAKE_CURRENT_SOURCE_DIR}/cases/${PROTO_FILE}.json")
+    target_link_libraries("${PROTO_FILE}-json-test" PRIVATE Qt6::Core)
     set_target_properties("${PROTO_FILE}-json-test" PROPERTIES AUTOMOC OFF AUTOUIC OFF)
     add_dependencies("${PROTO_FILE}-json-test" "${PROTO_FILE}-gen-client")
     add_test(NAME "${PROTO_FILE}-json-test" COMMAND "${PROTO_FILE}-json-test")
-    set_tests_properties("${PROTO_FILE}-json-test" PROPERTIES LABELS "protocol-high;treeland" TIMEOUT 30)
-endfunction()
-
-function(add_wayland_protocol_test PROTO_FILE XML_PATH)
-    get_filename_component(NAME_BASE "${XML_PATH}" NAME_WE)
-    string(REPLACE "-" "_" PVAR "${NAME_BASE}")
-    set(GEN_D "${CMAKE_CURRENT_BINARY_DIR}/generated/${NAME_BASE}")
-    set(CL_H "${GEN_D}/wayland-${NAME_BASE}-client-protocol.h")
-    set(CL_C "${GEN_D}/wayland-${NAME_BASE}-client-protocol.c")
-    add_custom_command(OUTPUT "${CL_H}" "${CL_C}"
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${GEN_D}"
-        COMMAND ${WAYLAND_SCANNER} client-header "${XML_PATH}" "${CL_H}"
-        COMMAND ${WAYLAND_SCANNER} private-code "${XML_PATH}" "${CL_C}"
-        DEPENDS "${XML_PATH}" VERBATIM)
-    set(GEN_SRC "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${NAME_BASE}-gen.c")
-    set(GEN_BIN "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${NAME_BASE}-gen-client")
-    add_custom_command(OUTPUT "${GEN_SRC}"
-        COMMAND gen-test-client "${XML_PATH}" "${GEN_SRC}"
-        DEPENDS gen-test-client "${XML_PATH}" VERBATIM)
-    add_executable("${PROTO_FILE}-gen-client" "${GEN_SRC}" "${CL_C}" "${XDG_SHELL_CLIENT_C}")
-    target_include_directories("${PROTO_FILE}-gen-client" PRIVATE "${GEN_D}" "${XDG_SHELL_INCLUDE_DIR}")
-    target_link_libraries("${PROTO_FILE}-gen-client" PRIVATE PkgConfig::WAYLAND_CLIENT)
-    set_target_properties("${PROTO_FILE}-gen-client" PROPERTIES
-        AUTOMOC OFF AUTOUIC OFF
-        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output")
-    add_executable("${PROTO_FILE}-json-test" json-controller.cpp)
-    target_compile_definitions("${PROTO_FILE}-json-test" PRIVATE
-        TL_CLIENT_PATH="${GEN_BIN}"
-        TL_CASE="${CMAKE_CURRENT_SOURCE_DIR}/cases/${PROTO_FILE}.json"
-        NO_MODULE_ATTACH)
-    target_link_libraries("${PROTO_FILE}-json-test" PRIVATE Qt6::Widgets libtreeland)
-    set_target_properties("${PROTO_FILE}-json-test" PROPERTIES AUTOMOC OFF AUTOUIC OFF)
-    add_dependencies("${PROTO_FILE}-json-test" "${PROTO_FILE}-gen-client")
-    add_test(NAME "${PROTO_FILE}-json-test" COMMAND "${PROTO_FILE}-json-test")
-    set_tests_properties("${PROTO_FILE}-json-test" PROPERTIES LABELS "protocol-high;std-wayland" TIMEOUT 30)
+    set_tests_properties("${PROTO_FILE}-json-test" PROPERTIES
+        LABELS "protocol-high;treeland" TIMEOUT 60
+        ENVIRONMENT "WLR_BACKENDS=headless;QT_QPA_PLATFORM=offscreen")
 endfunction()
 
 # ---- Shared xdg-shell stubs (needed by NEED_SURFACE_FIXTURE) ----
@@ -196,22 +161,11 @@ file(GLOB JSON_CASES "${CMAKE_CURRENT_SOURCE_DIR}/cases/*.json")
 foreach(JSON_PATH ${JSON_CASES})
     get_filename_component(CASE_FILE "${JSON_PATH}" NAME_WE)
     file(READ "${JSON_PATH}" JSON_CONTENT)
-
-    # Must have xml_path field
     string(JSON XML_PATH ERROR_VARIABLE XML_ERR GET "${JSON_CONTENT}" xml_path)
     if(XML_ERR)
         message(WARNING "Skipping ${CASE_FILE}: no xml_path field")
         continue()
     endif()
-
-    # Check for module info (treeland protocol)
-    string(JSON MOD_CLASS ERROR_VARIABLE MOD_ERR GET "${JSON_CONTENT}" module class)
-    if(MOD_ERR)
-        # Standard wayland protocol
-        add_wayland_protocol_test("${CASE_FILE}" "${XML_PATH}")
-    else()
-        string(JSON MOD_HEADER GET "${JSON_CONTENT}" module header)
-        string(JSON MOD_DIR GET "${JSON_CONTENT}" module dir)
-        add_json_protocol_test("${CASE_FILE}" "${XML_PATH}" "${MOD_HEADER}" "${MOD_CLASS}" "${MOD_DIR}")
-    endif()
+    add_protocol_test("${CASE_FILE}" "${XML_PATH}")
 endforeach()
+
