@@ -122,7 +122,7 @@ function(add_json_protocol_test PROTO_FILE XML_PATH MOD_HEADER MOD_CLASS MOD_DIR
     add_custom_command(OUTPUT "${GEN_SRC}"
         COMMAND gen-test-client "${XML_PATH}" "${GEN_SRC}"
         DEPENDS gen-test-client "${XML_PATH}" VERBATIM)
-    add_executable("${PROTO_FILE}-gen-client" "${GEN_SRC}" "${CL_C}")
+    add_executable("${PROTO_FILE}-gen-client" "${GEN_SRC}" "${CL_C}" "${XDG_SHELL_CLIENT_C}")
     target_include_directories("${PROTO_FILE}-gen-client" PRIVATE "${GEN_D}" "${XDG_SHELL_INCLUDE_DIR}")
     target_link_libraries("${PROTO_FILE}-gen-client" PRIVATE PkgConfig::WAYLAND_CLIENT)
     set_target_properties("${PROTO_FILE}-gen-client" PROPERTIES
@@ -155,7 +155,7 @@ function(add_wayland_protocol_test PROTO_FILE XML_PATH)
     add_custom_command(OUTPUT "${GEN_SRC}"
         COMMAND gen-test-client "${XML_PATH}" "${GEN_SRC}"
         DEPENDS gen-test-client "${XML_PATH}" VERBATIM)
-    add_executable("${PROTO_FILE}-gen-client" "${GEN_SRC}" "${CL_C}")
+    add_executable("${PROTO_FILE}-gen-client" "${GEN_SRC}" "${CL_C}" "${XDG_SHELL_CLIENT_C}")
     target_include_directories("${PROTO_FILE}-gen-client" PRIVATE "${GEN_D}" "${XDG_SHELL_INCLUDE_DIR}")
     target_link_libraries("${PROTO_FILE}-gen-client" PRIVATE PkgConfig::WAYLAND_CLIENT)
     set_target_properties("${PROTO_FILE}-gen-client" PROPERTIES
