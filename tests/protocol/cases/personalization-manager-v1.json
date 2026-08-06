@@ -1,0 +1,21 @@
+{
+  "protocol": "treeland_personalization-manager_v1",
+  "tests": [
+    {
+      "name": "get_window_context-smoke",
+      "steps": [
+        {
+          "type": "request",
+          "name": "get_window_context",
+          "args": []
+        },
+        {
+          "type": "checkpoint"
+        }
+      ],
+      "expected": {
+        "events": []
+      }
+    }
+  ]
+}

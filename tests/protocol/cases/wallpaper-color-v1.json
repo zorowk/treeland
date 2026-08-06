@@ -1,0 +1,26 @@
+{
+  "protocol": "treeland_wallpaper-color_v1",
+  "tests": [
+    {
+      "name": "watch-smoke",
+      "steps": [
+        {
+          "type": "request",
+          "name": "watch",
+          "args": [
+            "HEADLESS-1"
+          ]
+        },
+        {
+          "type": "roundtrip"
+        },
+        {
+          "type": "checkpoint"
+        }
+      ],
+      "expected": {
+        "events": []
+      }
+    }
+  ]
+}

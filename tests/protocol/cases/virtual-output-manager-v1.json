@@ -1,0 +1,27 @@
+{
+  "protocol": "treeland_virtual-output-manager_v1",
+  "tests": [
+    {
+      "name": "create_virtual_output-smoke",
+      "steps": [
+        {
+          "type": "request",
+          "name": "create_virtual_output",
+          "args": [
+            "test",
+            "hex:00"
+          ]
+        },
+        {
+          "type": "roundtrip"
+        },
+        {
+          "type": "checkpoint"
+        }
+      ],
+      "expected": {
+        "events": []
+      }
+    }
+  ]
+}

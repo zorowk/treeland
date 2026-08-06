@@ -1,0 +1,21 @@
+{
+  "protocol": "treeland_shortcut-manager_v2",
+  "tests": [
+    {
+      "name": "acquire-smoke",
+      "steps": [
+        {
+          "type": "request",
+          "name": "acquire",
+          "args": []
+        },
+        {
+          "type": "checkpoint"
+        }
+      ],
+      "expected": {
+        "events": []
+      }
+    }
+  ]
+}

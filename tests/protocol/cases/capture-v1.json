@@ -1,0 +1,21 @@
+{
+  "protocol": "treeland_capture_unstable_v1",
+  "tests": [
+    {
+      "name": "start-smoke",
+      "steps": [
+        {
+          "type": "request",
+          "name": "start",
+          "args": []
+        },
+        {
+          "type": "checkpoint"
+        }
+      ],
+      "expected": {
+        "events": []
+      }
+    }
+  ]
+}

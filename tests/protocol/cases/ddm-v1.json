@@ -1,0 +1,21 @@
+{
+  "protocol": "treeland_ddm_v1",
+  "tests": [
+    {
+      "name": "switch_to_greeter-smoke",
+      "steps": [
+        {
+          "type": "request",
+          "name": "switch_to_greeter",
+          "args": []
+        },
+        {
+          "type": "checkpoint"
+        }
+      ],
+      "expected": {
+        "events": []
+      }
+    }
+  ]
+}

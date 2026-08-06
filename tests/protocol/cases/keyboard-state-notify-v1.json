@@ -1,0 +1,21 @@
+{
+  "protocol": "treeland_keyboard-state-notify_unstable_v1",
+  "tests": [
+    {
+      "name": "get_keyboard_state_watcher-smoke",
+      "steps": [
+        {
+          "type": "request",
+          "name": "get_keyboard_state_watcher",
+          "args": []
+        },
+        {
+          "type": "checkpoint"
+        }
+      ],
+      "expected": {
+        "events": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "protocol": "treeland_input-manager_unstable_v1",
+  "tests": [
+    {
+      "name": "get_mouse_settings-smoke",
+      "steps": [
+        {
+          "type": "request",
+          "name": "get_mouse_settings",
+          "args": []
+        },
+        {
+          "type": "checkpoint"
+        }
+      ],
+      "expected": {
+        "events": []
+      }
+    }
+  ]
+}

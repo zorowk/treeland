@@ -1,0 +1,21 @@
+{
+  "protocol": "treeland_dde-shell_v1",
+  "tests": [
+    {
+      "name": "get_window_overlap_checker-smoke",
+      "steps": [
+        {
+          "type": "request",
+          "name": "get_window_overlap_checker",
+          "args": []
+        },
+        {
+          "type": "checkpoint"
+        }
+      ],
+      "expected": {
+        "events": []
+      }
+    }
+  ]
+}

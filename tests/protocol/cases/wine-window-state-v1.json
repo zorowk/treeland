@@ -1,0 +1,21 @@
+{
+  "protocol": "treeland_wine-window-state_unstable_v1",
+  "tests": [
+    {
+      "name": "get_window_state-smoke",
+      "steps": [
+        {
+          "type": "request",
+          "name": "get_window_state",
+          "args": []
+        },
+        {
+          "type": "checkpoint"
+        }
+      ],
+      "expected": {
+        "events": []
+      }
+    }
+  ]
+}

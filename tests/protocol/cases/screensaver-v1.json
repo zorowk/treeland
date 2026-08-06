@@ -1,0 +1,21 @@
+{
+  "protocol": "treeland_screensaver_v1",
+  "tests": [
+    {
+      "name": "inhibit-smoke",
+      "steps": [
+        {
+          "type": "request",
+          "name": "inhibit",
+          "args": []
+        },
+        {
+          "type": "checkpoint"
+        }
+      ],
+      "expected": {
+        "events": []
+      }
+    }
+  ]
+}

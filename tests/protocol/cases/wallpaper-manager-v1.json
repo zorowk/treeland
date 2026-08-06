@@ -1,0 +1,21 @@
+{
+  "protocol": "treeland_wallpaper-manager_unstable_v1",
+  "tests": [
+    {
+      "name": "get_treeland_wallpaper-smoke",
+      "steps": [
+        {
+          "type": "request",
+          "name": "get_treeland_wallpaper",
+          "args": []
+        },
+        {
+          "type": "checkpoint"
+        }
+      ],
+      "expected": {
+        "events": []
+      }
+    }
+  ]
+}

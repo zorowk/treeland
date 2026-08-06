@@ -1,0 +1,29 @@
+{
+  "protocol": "treeland_prelaunch-splash_v2",
+  "tests": [
+    {
+      "name": "create_splash-smoke",
+      "steps": [
+        {
+          "type": "request",
+          "name": "create_splash",
+          "args": [
+            "test",
+            "-",
+            "-",
+            "-"
+          ]
+        },
+        {
+          "type": "roundtrip"
+        },
+        {
+          "type": "checkpoint"
+        }
+      ],
+      "expected": {
+        "events": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "protocol": "treeland_app-id-resolver_v1",
+  "tests": [
+    {
+      "name": "get_resolver-smoke",
+      "steps": [
+        {
+          "type": "request",
+          "name": "get_resolver",
+          "args": []
+        },
+        {
+          "type": "checkpoint"
+        }
+      ],
+      "expected": {
+        "events": []
+      }
+    }
+  ]
+}
