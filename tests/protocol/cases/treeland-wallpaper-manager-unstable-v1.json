@@ -1,5 +1,6 @@
 {
   "protocol": "treeland_wallpaper-manager_v1",
+  "xml_path": "/usr/share/treeland-protocols/treeland-wallpaper-manager-unstable-v1.xml",
   "description": "Smoke test (needs wl_output + wl_surface fixture)",
   "tests": [
     {
@@ -20,6 +21,5 @@
         "events": []
       }
     }
-  ],
-  "xml_path": "/usr/share/treeland-protocols/treeland-wallpaper-manager-unstable-v1.xml"
+  ]
 }

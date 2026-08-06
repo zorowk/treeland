@@ -1,5 +1,6 @@
 {
   "protocol": "treeland_prelaunch-splash_v1",
+  "xml_path": "/usr/share/treeland-protocols/treeland-prelaunch-splash-v1.xml",
   "description": "Smoke test (protocol has no events \u2014 client can only send requests)",
   "tests": [
     {
@@ -26,6 +27,5 @@
         "events": []
       }
     }
-  ],
-  "xml_path": "/usr/share/treeland-protocols/treeland-prelaunch-splash-v1.xml"
+  ]
 }

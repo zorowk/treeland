@@ -1,5 +1,6 @@
 {
   "protocol": "treeland_dde-shell_v1",
+  "xml_path": "/usr/share/treeland-protocols/treeland-dde-shell-v1.xml",
   "description": "Smoke test (needs wl_surface + window management fixture)",
   "tests": [
     {
@@ -20,6 +21,5 @@
         "events": []
       }
     }
-  ],
-  "xml_path": "/usr/share/treeland-protocols/treeland-dde-shell-v1.xml"
+  ]
 }

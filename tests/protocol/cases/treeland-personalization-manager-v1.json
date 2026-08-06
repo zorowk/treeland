@@ -1,5 +1,6 @@
 {
   "protocol": "treeland_personalization-manager_v1",
+  "xml_path": "/usr/share/treeland-protocols/treeland-personalization-manager-v1.xml",
   "description": "Smoke test (needs wl_surface fixture)",
   "tests": [
     {
@@ -20,6 +21,5 @@
         "events": []
       }
     }
-  ],
-  "xml_path": "/usr/share/treeland-protocols/treeland-personalization-manager-v1.xml"
+  ]
 }

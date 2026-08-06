@@ -1,4 +1,10 @@
 {
+  "xml_path": "/usr/share/treeland-protocols/treeland-wallpaper-color-v1.xml",
+  "module": {
+    "class": "WallpaperColorInterfaceV1",
+    "header": "wallpapercolorinterfacev1.h",
+    "dir": "wallpaper-color"
+  },
   "description": "Wallpaper color monitoring",
   "tests": [
     {
@@ -37,11 +43,5 @@
         ]
       }
     }
-  ],
-  "xml_path": "/usr/share/treeland-protocols/treeland-wallpaper-color-v1.xml",
-  "module": {
-    "class": "WallpaperColorInterfaceV1",
-    "header": "wallpapercolorinterfacev1.h",
-    "dir": "wallpaper-color"
-  }
+  ]
 }

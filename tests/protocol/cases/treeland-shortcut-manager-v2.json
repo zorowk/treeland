@@ -1,5 +1,6 @@
 {
   "protocol": "treeland_shortcut-manager_v2",
+  "xml_path": "/usr/share/treeland-protocols/treeland-shortcut-manager-v2.xml",
   "description": "Smoke test (needs wl_surface + wl_seat fixture)",
   "tests": [
     {
@@ -20,6 +21,5 @@
         "events": []
       }
     }
-  ],
-  "xml_path": "/usr/share/treeland-protocols/treeland-shortcut-manager-v2.xml"
+  ]
 }

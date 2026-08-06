@@ -1,5 +1,6 @@
 {
   "protocol": "treeland_foreign-toplevel-manager_v1",
+  "xml_path": "/usr/share/treeland-protocols/treeland-foreign-toplevel-manager-v1.xml",
   "description": "Smoke test (needs xdg_toplevel surface fixture)",
   "tests": [
     {
@@ -20,6 +21,5 @@
         "events": []
       }
     }
-  ],
-  "xml_path": "/usr/share/treeland-protocols/treeland-foreign-toplevel-manager-v1.xml"
+  ]
 }

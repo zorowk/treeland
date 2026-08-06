@@ -1,6 +1,11 @@
 {
   "protocol": "treeland_window_management_v1",
   "xml_path": "/usr/share/treeland-protocols/treeland-window-management-v1.xml",
+  "module": {
+    "class": "WindowManagementInterfaceV1",
+    "header": "windowmanagementinterfacev1.h",
+    "dir": "window-management"
+  },
   "tests": [
     {
       "name": "set-desktop-show",
@@ -64,10 +69,5 @@
         ]
       }
     }
-  ],
-  "module": {
-    "class": "WindowManagementInterfaceV1",
-    "header": "windowmanagementinterfacev1.h",
-    "dir": "window-management"
-  }
+  ]
 }

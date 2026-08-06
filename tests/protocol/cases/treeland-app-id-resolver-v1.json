@@ -1,5 +1,6 @@
 {
   "protocol": "treeland_app-id-resolver_v1",
+  "xml_path": "/usr/share/treeland-protocols/treeland-app-id-resolver-v1.xml",
   "description": "Smoke test (needs pidfd (process file descriptor) fixture)",
   "tests": [
     {
@@ -20,6 +21,5 @@
         "events": []
       }
     }
-  ],
-  "xml_path": "/usr/share/treeland-protocols/treeland-app-id-resolver-v1.xml"
+  ]
 }

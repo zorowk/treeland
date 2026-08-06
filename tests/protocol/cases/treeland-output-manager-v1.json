@@ -1,5 +1,6 @@
 {
   "protocol": "treeland_output-manager_v1",
+  "xml_path": "/usr/share/treeland-protocols/treeland-output-manager-v1.xml",
   "description": "Smoke test (needs wl_output hardware fixture)",
   "tests": [
     {
@@ -24,6 +25,5 @@
         "events": []
       }
     }
-  ],
-  "xml_path": "/usr/share/treeland-protocols/treeland-output-manager-v1.xml"
+  ]
 }

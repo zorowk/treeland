@@ -1,5 +1,11 @@
 {
   "protocol": "treeland_virtual-output-manager_v1",
+  "xml_path": "/usr/share/treeland-protocols/treeland-virtual-output-manager-v1.xml",
+  "module": {
+    "class": "VirtualOutputInterfaceV1",
+    "header": "virtualoutputmanagerinterfacev1.h",
+    "dir": "virtual-output"
+  },
   "description": "Smoke test (needs headless output configuration)",
   "tests": [
     {
@@ -25,11 +31,5 @@
         "events": []
       }
     }
-  ],
-  "xml_path": "/usr/share/treeland-protocols/treeland-virtual-output-manager-v1.xml",
-  "module": {
-    "class": "VirtualOutputInterfaceV1",
-    "header": "virtualoutputmanagerinterfacev1.h",
-    "dir": "virtual-output"
-  }
+  ]
 }
