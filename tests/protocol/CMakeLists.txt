@@ -138,7 +138,7 @@ function(add_protocol_test PROTO_FILE XML_PATH)
     add_test(NAME "${PROTO_FILE}-json-test" COMMAND "${PROTO_FILE}-json-test")
     set_tests_properties("${PROTO_FILE}-json-test" PROPERTIES
         LABELS "protocol-high;treeland" TIMEOUT 60
-        ENVIRONMENT "WLR_BACKENDS=headless;QT_QPA_PLATFORM=offscreen")
+        ENVIRONMENT "WLR_BACKENDS=headless")
 endfunction()
 
 # ---- Shared xdg-shell stubs (needed by NEED_SURFACE_FIXTURE) ----

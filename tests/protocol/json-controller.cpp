@@ -1,7 +1,7 @@
 // JSON-driven protocol test controller.
 // Starts headless treeland once per JSON, runs all test cases against it.
 // Compile with: -DTL_CLIENT_PATH=/path/to/client -DTL_CASE=/path/to/case.json
-// Environment: WLR_BACKENDS=headless QT_QPA_PLATFORM=offscreen
+// Environment: WLR_BACKENDS=headless (QPA is hardcoded in treeland via WServer::initializeQPA)
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
@@ -57,7 +57,6 @@ int main(int argc, char **argv) {
     QProcess compositor;
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     env.insert("WLR_BACKENDS", "headless");
-    env.insert("QT_QPA_PLATFORM", "offscreen");
     env.insert("XDG_RUNTIME_DIR", QString::fromUtf8(tmpdir));
     env.insert("WAYLAND_DISPLAY", "wayland-0");
     compositor.setProcessEnvironment(env);
