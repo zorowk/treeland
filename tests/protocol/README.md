@@ -3,67 +3,45 @@
 ## Architecture
 
 ```
-/usr/share/treeland-protocols/*.xml    (also /usr/share/wayland-protocols/)
+cases/*.json              (self-contained — declares xml_path + module)
   │
-  ├── wayland-scanner → wayland-<proto>-client-protocol.h/.c  (wire stubs)
-  └── gen-test-client  → tl-test-<proto>.c                    (standalone C client)
-                            │
-                            └── json-controller               (reads JSON, starts WServer,
-                                                               spawns client, checks output)
+  ├── CMake globs JSONs → wayland-scanner stubs →
+  │   gen-test-client C client → json-controller test binary
+  │
+  └── json-controller (QApplication + WServer + nested QEventLoop)
+        reads {tests}, spawns gen-client, diffs EXPECT output
 ```
+
+No per-protocol CMake rules. Adding a protocol test = one JSON file.
 
 ## File Layout
 
 ```
 tests/protocol/
-├── gen-test-client/          # Code generator (reads XML, outputs C)
-│   ├── main.cpp              # Generator source
-│   ├── template.c.in         # C template with {{PLACEHOLDERS}}
+├── gen-test-client/          # Code generator (reads XML → C via template)
+│   ├── main.cpp
+│   ├── template.c.in
 │   └── CMakeLists.txt
-├── json-controller.cpp       # Reads per-protocol JSON, drives test
-├── treeland-controller.cpp   # Starts WServer + protocol module
-├── gencliente2etest.cpp      # Generic E2E harness for echo server tests
-├── CMakeLists.txt            # add_gen_client_test(), add_json_protocol_test()
+├── json-controller.cpp       # Per-protocol test runner (QApplication + WServer)
+├── gencliente2etest.cpp      # Echo server E2E harness
+├── CMakeLists.txt            # add_gen_client_test(), JSON-driven auto-generator
 ├── fixtures/                 # 6 self-contained test protocol XMLs
-├── cases/                    # Per-protocol JSON test cases
+├── cases/                    # 21 JSON test cases (self-contained format)
 ├── *echoserver.c             # Echo servers for fixture protocols
-├── lsan-suppressions.txt
-└── .github/workflows/protocol-test.yml
+└── lsan-suppressions.txt
 ```
 
-## Protocol Sources
-
-| Path | Contents |
-|------|----------|
-| `/usr/share/treeland-protocols/treeland-*.xml` | 21 Treeland private protocols |
-| `/usr/share/wayland-protocols/` | Standard Wayland protocols (xdg-shell, etc.) |
-
-All 21 treeland protocols compile via gen-test-client.
-
-## How to Add a Protocol Test
-
-### Step 1: Verify the client compiles
-
-```bash
-cd build-feat-testprotocol
-./tests/protocol/gen-test-client/gen-test-client \
-    /usr/share/treeland-protocols/treeland-<name>.xml \
-    /tmp/test.c
-
-# Compile check (needs wayland-scanner stubs):
-WAYLAND_SCANNER=$(pkg-config --variable=wayland_scanner wayland-scanner)
-$WAYLAND_SCANNER client-header <xml> /tmp/wayland-<proto>-client-protocol.h
-$WAYLAND_SCANNER private-code <xml> /tmp/wayland-<proto>-client-protocol.c
-gcc -fsyntax-only -I/tmp -I/usr/include /tmp/test.c
-```
-
-### Step 2: Write the JSON test case
-
-Create `tests/protocol/cases/<module>.json`:
+## JSON Test Case Format (self-contained)
 
 ```json
 {
   "protocol": "treeland_window_management_v1",
+  "xml_path": "/usr/share/treeland-protocols/treeland-window-management-v1.xml",
+  "module": {
+    "class": "WindowManagementInterfaceV1",
+    "header": "windowmanagementinterfacev1.h",
+    "dir": "window-management"
+  },
   "tests": [
     {
       "name": "set-desktop-show",
@@ -82,284 +60,93 @@ Create `tests/protocol/cases/<module>.json`:
 }
 ```
 
+- `xml_path`: absolute path to the protocol XML
+- `module`: omitted for standard wayland protocols (WServer auto-registers them)
+- `module.class`: Qt/Wayland C++ class name (must match `server->attach<ClassName>()` in `src/seat/helper.cpp`)
+- `module.header`: header filename in `src/modules/<dir>/`
+- `module.dir`: treeland module subdirectory
+
 Step types:
-- `"type": "request"` — call a protocol request. `"name"` matches the XML request name. `"args"` are values (numbers as-is, strings as-is, `"-"` for null).
-- `"type": "roundtrip"` — `wl_display_roundtrip()`.
-- `"type": "checkpoint"` — end of steps, collect events.
+- `"type": "request"` — call a request. `"name"` matches XML. `"args"`: numbers, strings, `"-"` for null.
+- `"type": "roundtrip"` — `wl_display_roundtrip()`
+- `"type": "checkpoint"` — end of steps, flush and collect events
 
-### Step 3: Add CMake rule
+## How to Add a Protocol Test
 
-In `tests/protocol/CMakeLists.txt`, add:
-
-```cmake
-add_json_protocol_test(test-<module> <xml_var> <gen_dir> <client_code_var>
-    "<module>interfacev1.h" <ModuleClass> <module-dir>)
-```
-
-Example for window-management:
-```cmake
-add_json_protocol_test(test-wm window_management_xml wm_generated_directory wm_client_code
-    "windowmanagementinterfacev1.h" WindowManagementInterfaceV1 window-management)
-```
-
-### Step 4: Build and run
+### 1. Create the JSON case file
 
 ```bash
-cmake --build build-feat-testprotocol --target test-<module>-json-test -j8
-ctest --test-dir build-feat-testprotocol -R test-<module>-json --output-on-failure
+# Write cases/treeland-<name>.json with xml_path, optional module, and tests
 ```
 
-## Deciding What to Test
+### 2. Build and run
 
-**Not all protocols need JSON cases.** Decision flow:
+```bash
+# CMake auto-discovers all cases/*.json. No manual rules.
+cmake --preset default -B build
+cmake --build build -j$(nproc)
 
-1. Does the protocol have events? → If no, smoke test only (request + no crash).
-2. Do events fire immediately on request? → If yes, full JSON test case.
-3. Do events depend on treeland state (outputs, surfaces, seats)? → If yes, may need server fixture setup before testing.
+# Run treeland internal protocol tests
+QT_QPA_PLATFORM=offscreen ctest --test-dir build -L treeland --output-on-failure
 
-**Priority order for writing JSON cases:**
+# Run standard wayland protocol tests
+QT_QPA_PLATFORM=offscreen ctest --test-dir build -L std-wayland --output-on-failure
 
-| Priority | Protocols | Reason |
-|----------|-----------|--------|
-| 1 | window-management | Already done; simplest request→event |
-| 2 | wallpaper-color, virtual-output-manager | Simple request args, events fire immediately |
-| 3 | capture, keyboard-state-notify | Events fire on state subscription |
-| 4 | ddm, screensaver, prelaunch-splash | Complex state dependencies or no events |
-
-## AI-Assisted JSON Generation
-
-The `gen-test-client` generates a C client. To generate the JSON test case:
-
-1. Read the protocol XML to understand requests and events
-2. Read the treeland module source (`src/modules/<module>/`) to understand server behavior
-3. For each request that triggers an immediate event, write a test case
-4. The event format in `expected.events` matches the gen-test-client output format:
-   `EVENT <event_name> <arg_name>=<value> ...`
-
-Example: If gen-test-client outputs `EVENT show_desktop state=1`, the expected JSON is:
-```json
-{ "event": "show_desktop", "args": [{ "type": "uint", "value": 1 }] }
+# Run a single protocol
+cmake --build build --target treeland-wallpaper-color-v1-json-test -j8
+QT_QPA_PLATFORM=offscreen ./build/tests/protocol/treeland-wallpaper-color-v1-json-test
 ```
+
+## Protocol Status (21 total)
+
+| Protocol | Module Class | JSON | CMake |
+|----------|-------------|------|-------|
+| window-management | WindowManagementInterfaceV1 | ✅ | ✅ auto |
+| wallpaper-color | WallpaperColorInterfaceV1 | ✅ | ✅ auto |
+| ddm | DDMInterfaceV1 | ✅ | ✅ auto |
+| screensaver | ScreensaverInterfaceV1 | ✅ | ✅ auto |
+| virtual-output | VirtualOutputManagerInterfaceV1 | ✅ | ✅ auto |
+| keyboard-state-notify | TreelandKeyboardStateNotifyManagerInterfaceV1 | ✅ | ✅ auto |
+| app-id-resolver | — (wlroots-managed) | ✅ | ✅ auto |
+| capture | — | ✅ | ✅ auto |
+| dde-shell | — | ✅ | ✅ auto |
+| foreign-toplevel | — | ✅ | ✅ auto |
+| input-manager | — | ✅ | ✅ auto |
+| output-manager | — | ✅ | ✅ auto |
+| personalization | — | ✅ | ✅ auto |
+| prelaunch-splash-v1 | — | ✅ | ✅ auto |
+| prelaunch-splash-v2 | — | ✅ | ✅ auto |
+| shortcut-manager-v1 | — | ✅ | ✅ auto |
+| shortcut-manager-v2 | — | ✅ | ✅ auto |
+| wallpaper-manager | — | ✅ | ✅ auto |
+| wallpaper-shell | — | ✅ | ✅ auto |
+| wine-window-management | — | ✅ | ✅ auto |
+| wine-window-state | — | ✅ | ✅ auto |
 
 ## Running All Tests
 
 ```bash
-# All gen-client tests (echo server fixtures)
-ctest --test-dir build-feat-testprotocol -L gen-client --output-on-failure
-
-# JSON-driven treeland protocol tests
-ctest --test-dir build-feat-testprotocol -L json-driven --output-on-failure
-
-# CI stability (100x repeat)
-QT_QPA_PLATFORM=offscreen ctest --test-dir build-feat-testprotocol -L gen-client --repeat until-fail:100
-```
-
-## Current Coverage
-
-| Layer | Count | Status |
-|-------|-------|--------|
-| Protocols compiling | 21/21 | ✅ |
-| gen-client E2E tests | 6 | ✅ (fixture protocols) |
-| JSON treeland tests | 1 | ⚠️ (window-management only) |
-| CI workflow | 1 | ✅ |
-
-## Known Gaps
-
-- Only window-management has a JSON test case; 20 protocols need cases written
-- json-controller currently hardcodes WindowManagementInterfaceV1; needs registry for other modules
-- Fixture-based E2E tests use hand-rolled echo servers; treeland integration tests use WServer
-- No standard wayland protocol tests yet (xdg-shell, wl_output, etc.)
-
-## Full Protocol Coverage Strategy
-
-Two protocol sources, two testing approaches:
-
-### Treeland private protocols (21 in /usr/share/treeland-protocols/)
-
-Compiled from XML by treeland. Each has a src/modules/<name>/ implementation.
-Testing requires json-controller to attach the specific module.
-
-Status: all 21 compile via gen-test-client. Only window-management has a
-JSON test case. Remaining 20 need:
-1. JSON case file in tests/protocol/cases/<module>.json
-2. CMake rule: add_json_protocol_test(...)
-
-### Standard Wayland protocols (55 in /usr/share/wayland-protocols/)
-
-Implemented by wlroots. WServer auto-registers them - no attach<>() needed.
-gen-test-client generates clients from any wayland XML.
-
-Testing a standard protocol:
-1. gen-test-client /usr/share/wayland-protocols/.../xxx.xml → client.c
-2. Start treeland headless (WServer auto-provides all wlroots protocols)
-3. Spawn client, check EVENT output
-
-No per-protocol CMake module rules needed. Share a generic controller.
-
-### What's practical to test
-
-| Category | Count | Testable | Notes |
-|----------|-------|----------|-------|
-| Treeland private | 21 | All 21 | Need JSON case per protocol |
-| Wayland core (xdg-shell, etc.) | 5 | Yes | Basic request→event |
-| Wayland staging | 30 | Some | Pick simple API ones |
-| Wayland hardware (drm, dmabuf) | 10 | No | Need GPU/hardware |
-| Wayland unstable | 10 | Some | Legacy, low priority |
-
-### Priority
-
-1. Write JSON cases for remaining 20 treeland protocols
-2. Add generic standard-protocol controller (WServer only)
-3. Test xdg-shell, wl_output, xdg-activation (most used)
-4. Extend to other staging protocols as needed
-
-## How to Run Tests
-
-### 1. Build everything
-
-```bash
+# Build everything
 cmake --preset default -B build
 cmake --build build -j$(nproc)
-```
 
-### 2. Gen-client E2E tests (fixture protocols)
-
-Tests the gen-test-client generator itself via echo servers:
-
-```bash
+# All gen-client tests (echo server fixtures)
 ctest --test-dir build -L gen-client --output-on-failure
+
+# JSON-driven treeland protocol tests
+QT_QPA_PLATFORM=offscreen ctest --test-dir build -L treeland --output-on-failure
+
+# JSON-driven standard wayland protocol tests
+QT_QPA_PLATFORM=offscreen ctest --test-dir build -L std-wayland --output-on-failure
 ```
 
-### 3. JSON-driven treeland protocol tests
+## Known Limitations
 
-Tests real treeland protocols via WServer + module attach:
-
-```bash
-ctest --test-dir build -L json-driven --output-on-failure
-```
-
-### 4. Individual protocol test
-
-```bash
-# Build and run a single protocol test
-cmake --build build --target test-wm-json-test -j8
-ctest --test-dir build -R test-wm-json --output-on-failure
-```
-
-### 5. Add a new treeland protocol to the test suite
-
-1. Verify XML exists: `ls /usr/share/treeland-protocols/treeland-<name>.xml`
-2. Verify gen-test-client compiles:
-   ```bash
-   ./build/tests/protocol/gen-test-client/gen-test-client \
-       /usr/share/treeland-protocols/treeland-<name>.xml /tmp/test.c
-   ```
-3. Create `tests/protocol/cases/<name>.json` (see JSON format below)
-4. Find the QtWayland class name:
-   ```bash
-   grep 'class ' build/src/modules/<module>/qwayland-server-treeland-*.h
-   ```
-5. Add CMake rules to `tests/protocol/CMakeLists.txt`:
-   - XML variable definition
-   - wayland-scanner custom_command for stubs
-   - `add_json_protocol_test()` call with module header, class, and directory
-
-### 6. Test a standard wayland protocol
-
-```bash
-# Generate client from wayland XML
-gen-test-client /usr/share/wayland-protocols/.../xxx.xml /tmp/client.c
-
-# Compile with wayland-scanner stubs
-wayland-scanner client-header xxx.xml /tmp/wayland-xxx-client-protocol.h
-wayland-scanner private-code xxx.xml /tmp/wayland-xxx-client-protocol.c
-gcc /tmp/client.c /tmp/wayland-xxx-client-protocol.c -lwayland-client -o /tmp/test
-
-# Start treeland, run client
-./treeland --headless &
-/tmp/test --socket /tmp/treeland-wayland-0 --request <name> <args> --roundtrip --checkpoint
-```
-
-## JSON Test Case Format
-
-```json
-{
-  "protocol": "treeland_window_management_v1",
-  "tests": [
-    {
-      "name": "test-name",
-      "steps": [
-        { "type": "request", "name": "set_desktop", "args": [1] },
-        { "type": "roundtrip" },
-        { "type": "checkpoint" }
-      ],
-      "expected": {
-        "events": [
-          { "event": "show_desktop", "args": [{ "type": "uint", "value": 1 }] }
-        ]
-      }
-    }
-  ]
-}
-```
-
-Step types:
-- `"type": "request"` — Send a protocol request. `"name"` matches the XML.
-  `"args"` are values: numbers, strings, `"-"` for null, `"hex:00ff"` for array.
-- `"type": "roundtrip"` — `wl_display_roundtrip()` to flush events.
-- `"type": "checkpoint"` — End of steps, collect events for comparison.
-
-Event args types: `"uint"`, `"int"`, `"string"`, `"fixed"`, `"fd"`, `"array"`.
-
-## CMake Integration
-
-Two functions for adding tests:
-
-### add_gen_client_test — fixture protocol E2E
-```cmake
-add_gen_client_test(test-<name>
-    <xml_var> <gen_dir> <client_code_var>
-    echoserver.c <client_code_var>
-    "<cli-args>" "<expected-output-pattern>")
-```
-Runs against a hand-rolled echo server. Used for the 6 self-contained
-test protocols in `fixtures/`.
-
-### add_json_protocol_test — real treeland protocol
-```cmake
-add_json_protocol_test(test-<name>
-    <xml_var> <gen_dir> <client_code_var>
-    "<module-header.h>" <ModuleClass> <module-dir>)
-```
-Runs against WServer with module attach. JSON case file expected at
-`cases/<module-dir>.json`.
-
-## Complete Protocol List
-
-All 21 treeland protocols in `/usr/share/treeland-protocols/` compile via
-gen-test-client. JSON case files exist for all 21 in `cases/`. CMake rules
-exist for a subset; remaining need mechanical wiring.
-
-| Protocol | JSON | CMake | Notes |
-|----------|------|-------|-------|
-| app-id-resolver | ✅ | ⚠️ | appidresolver.h → AppIdResolverManager |
-| capture | ✅ | - | Needs compositor surface fixture |
-| dde-shell | ✅ | - | Multi-interface, complex |
-| ddm | ✅ | ⚠️ | ddminterfacev1.h → DDMInterfaceV1 |
-| foreign-toplevel | ✅ | - | Needs surface fixture |
-| input-manager | ✅ | - | Needs seat fixture |
-| keyboard-state-notify | ✅ | ⚠️ | keyboardstatenotifymanagerinterfacev1.h → KeyboardStateWatcherV1 |
-| output-manager | ✅ | - | Needs output fixture |
-| personalization | ✅ | - | Needs surface fixture |
-| prelaunch-splash-v1 | ✅ | - | No events, smoke test only |
-| prelaunch-splash-v2 | ✅ | - | No events, smoke test only |
-| screensaver | ✅ | ⚠️ | screensaverinterfacev1.h → ScreensaverInterfaceV1 |
-| shortcut-manager-v1 | ✅ | - | Needs keyboard fixture |
-| shortcut-manager-v2 | ✅ | - | Needs keyboard fixture |
-| virtual-output | ✅ | ⚠️ | virtualoutputmanagerinterfacev1.h → VirtualOutputInterfaceV1 |
-| wallpaper-color | ✅ | ⚠️ | wallpapercolorinterfacev1.h → WallpaperColorInterfaceV1 |
-| wallpaper-manager | ✅ | - | Needs output + surface |
-| wallpaper-shell | ✅ | - | Needs surface fixture |
-| window-management | ✅ | ✅ | Fully wired, 2 test cases |
-| wine-window-management | ✅ | - | Needs xdg-shell fixture |
-| wine-window-state | ✅ | - | Needs xdg-shell fixture |
+- Treeland protocol tests need proper server fixtures (outputs, seats, surfaces) 
+  for events that depend on compositor state. Current tests are smoke-level 
+  (verify client connects and doesn't crash).
+- Standard wayland protocol tests are limited to protocols wlroots auto-registers.
+  Protocols needing specific treeland infrastructure (xdg-shell surfaces, etc.)
+  require the `NEED_SURFACE_FIXTURE` path in gen-test-client.
+- `QT_QPA_PLATFORM=offscreen` is required because json-controller links Qt6::Widgets
+  (for QApplication). No actual display is used.
