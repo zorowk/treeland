@@ -919,4 +919,8 @@ add_gen_client_test(test-fd fd_test_xml fd_generated_directory fd_client_code
 add_gen_client_test(test-new-id new_id_test_xml new_id_generated_directory new_id_client_code
     newidechoserver.c new_id_client_code "create_child" "EVENT treeland_test_child_v1.done")
 add_gen_client_test(test-object-newid obj_newid_test_xml obj_newid_generated_directory obj_newid_client_code
-    objnewidechoserver.c obj_newid_client_code "create_child" "EVENT treeland_test_child_v1.done")
+add_subdirectory(gen-test-client)
+
+function(add_gen_client_test TEST_NAME XML_VAR GEN_DIR CLIENT_LIBS SERVER_SRC SERVER_LIBS REQUEST EXPECT)
+    set(GEN_SRC ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${TEST_NAME}-gen.c)
+    set(GEN_BIN ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${TEST_NAME}-gen-client)
