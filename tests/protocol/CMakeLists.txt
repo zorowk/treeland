@@ -126,6 +126,7 @@ function(add_json_protocol_test PROTO_FILE XML_PATH MOD_HEADER MOD_CLASS MOD_DIR
     target_include_directories("${PROTO_FILE}-gen-client" PRIVATE "${GEN_D}" "${XDG_SHELL_INCLUDE_DIR}")
     target_link_libraries("${PROTO_FILE}-gen-client" PRIVATE PkgConfig::WAYLAND_CLIENT)
     set_target_properties("${PROTO_FILE}-gen-client" PROPERTIES
+        AUTOMOC OFF AUTOUIC OFF
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output")
     add_executable("${PROTO_FILE}-json-test" json-controller.cpp)
     target_compile_definitions("${PROTO_FILE}-json-test" PRIVATE
@@ -135,6 +136,7 @@ function(add_json_protocol_test PROTO_FILE XML_PATH MOD_HEADER MOD_CLASS MOD_DIR
         TL_MODULE_CLASS=${MOD_CLASS})
     target_include_directories("${PROTO_FILE}-json-test" PRIVATE "${CMAKE_SOURCE_DIR}/src/modules/${MOD_DIR}")
     target_link_libraries("${PROTO_FILE}-json-test" PRIVATE Qt6::Core libtreeland)
+    set_target_properties("${PROTO_FILE}-json-test" PROPERTIES AUTOMOC OFF AUTOUIC OFF)
     add_dependencies("${PROTO_FILE}-json-test" "${PROTO_FILE}-gen-client")
     add_test(NAME "${PROTO_FILE}-json-test" COMMAND "${PROTO_FILE}-json-test")
     set_tests_properties("${PROTO_FILE}-json-test" PROPERTIES LABELS "protocol-high;treeland" TIMEOUT 30)
@@ -142,6 +144,7 @@ endfunction()
 
 function(add_wayland_protocol_test PROTO_FILE XML_PATH)
     get_filename_component(NAME_BASE "${XML_PATH}" NAME_WE)
+    string(REPLACE "-" "_" PVAR "${NAME_BASE}")
     set(GEN_D "${CMAKE_CURRENT_BINARY_DIR}/generated/${NAME_BASE}")
     set(CL_H "${GEN_D}/wayland-${NAME_BASE}-client-protocol.h")
     set(CL_C "${GEN_D}/wayland-${NAME_BASE}-client-protocol.c")
@@ -159,6 +162,7 @@ function(add_wayland_protocol_test PROTO_FILE XML_PATH)
     target_include_directories("${PROTO_FILE}-gen-client" PRIVATE "${GEN_D}" "${XDG_SHELL_INCLUDE_DIR}")
     target_link_libraries("${PROTO_FILE}-gen-client" PRIVATE PkgConfig::WAYLAND_CLIENT)
     set_target_properties("${PROTO_FILE}-gen-client" PROPERTIES
+        AUTOMOC OFF AUTOUIC OFF
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output")
     add_executable("${PROTO_FILE}-json-test" json-controller.cpp)
     target_compile_definitions("${PROTO_FILE}-json-test" PRIVATE
@@ -168,6 +172,7 @@ function(add_wayland_protocol_test PROTO_FILE XML_PATH)
         TL_MODULE_CLASS=int
         NO_MODULE_ATTACH)
     target_link_libraries("${PROTO_FILE}-json-test" PRIVATE Qt6::Core libtreeland)
+    set_target_properties("${PROTO_FILE}-json-test" PROPERTIES AUTOMOC OFF AUTOUIC OFF)
     add_dependencies("${PROTO_FILE}-json-test" "${PROTO_FILE}-gen-client")
     add_test(NAME "${PROTO_FILE}-json-test" COMMAND "${PROTO_FILE}-json-test")
     set_tests_properties("${PROTO_FILE}-json-test" PROPERTIES LABELS "protocol-high;std-wayland" TIMEOUT 30)
