@@ -1,14 +1,17 @@
 {
   "protocol": "treeland_personalization-manager_v1",
+  "description": "Smoke test (needs wl_surface fixture)",
   "tests": [
     {
-      "name": "get_window_context-smoke",
+      "name": "smoke-get_window_context",
+      "description": "Verifies client can bind, send get_window_context, and not crash. needs wl_surface fixture",
       "steps": [
         {
           "type": "request",
           "name": "get_window_context",
           "args": []
         },
+        {},
         {
           "type": "checkpoint"
         }

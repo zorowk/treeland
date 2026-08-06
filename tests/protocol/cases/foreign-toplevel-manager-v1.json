@@ -1,14 +1,17 @@
 {
   "protocol": "treeland_foreign-toplevel-manager_v1",
+  "description": "Smoke test (needs xdg_toplevel surface fixture)",
   "tests": [
     {
-      "name": "stop-smoke",
+      "name": "smoke-stop",
+      "description": "Verifies client can bind, send stop, and not crash. needs xdg_toplevel surface fixture",
       "steps": [
         {
           "type": "request",
           "name": "stop",
           "args": []
         },
+        {},
         {
           "type": "checkpoint"
         }

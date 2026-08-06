@@ -1,14 +1,17 @@
 {
-  "protocol": "treeland_wallpaper-shell_unstable_v1",
+  "protocol": "treeland_wallpaper-shell_v1",
+  "description": "Smoke test (needs wl_surface fixture)",
   "tests": [
     {
-      "name": "get_treeland_wallpaper_surface-smoke",
+      "name": "smoke-get_treeland_wallpaper_surface",
+      "description": "Verifies client can bind, send get_treeland_wallpaper_surface, and not crash. needs wl_surface fixture",
       "steps": [
         {
           "type": "request",
           "name": "get_treeland_wallpaper_surface",
           "args": []
         },
+        {},
         {
           "type": "checkpoint"
         }

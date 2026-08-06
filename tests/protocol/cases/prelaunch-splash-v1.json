@@ -1,8 +1,10 @@
 {
   "protocol": "treeland_prelaunch-splash_v1",
+  "description": "Smoke test (protocol has no events \u2014 client can only send requests)",
   "tests": [
     {
-      "name": "create_splash-smoke",
+      "name": "smoke-create_splash",
+      "description": "Verifies client can bind, send create_splash, and not crash. protocol has no events \u2014 client can only send requests",
       "steps": [
         {
           "type": "request",

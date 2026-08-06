@@ -1,14 +1,17 @@
 {
   "protocol": "treeland_shortcut-manager_v2",
+  "description": "Smoke test (needs wl_surface + wl_seat fixture)",
   "tests": [
     {
-      "name": "acquire-smoke",
+      "name": "smoke-acquire",
+      "description": "Verifies client can bind, send acquire, and not crash. needs wl_surface + wl_seat fixture",
       "steps": [
         {
           "type": "request",
           "name": "acquire",
           "args": []
         },
+        {},
         {
           "type": "checkpoint"
         }

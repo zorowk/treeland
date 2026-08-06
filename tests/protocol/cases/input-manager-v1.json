@@ -1,14 +1,17 @@
 {
-  "protocol": "treeland_input-manager_unstable_v1",
+  "protocol": "treeland_input-manager_v1",
+  "description": "Smoke test (needs wl_seat + input device fixture)",
   "tests": [
     {
-      "name": "get_mouse_settings-smoke",
+      "name": "smoke-get_mouse_settings",
+      "description": "Verifies client can bind, send get_mouse_settings, and not crash. needs wl_seat + input device fixture",
       "steps": [
         {
           "type": "request",
           "name": "get_mouse_settings",
           "args": []
         },
+        {},
         {
           "type": "checkpoint"
         }

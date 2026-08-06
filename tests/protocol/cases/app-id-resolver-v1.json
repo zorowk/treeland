@@ -1,14 +1,17 @@
 {
   "protocol": "treeland_app-id-resolver_v1",
+  "description": "Smoke test (needs pidfd (process file descriptor) fixture)",
   "tests": [
     {
-      "name": "get_resolver-smoke",
+      "name": "smoke-get_resolver",
+      "description": "Verifies client can bind, send get_resolver, and not crash. needs pidfd (process file descriptor) fixture",
       "steps": [
         {
           "type": "request",
           "name": "get_resolver",
           "args": []
         },
+        {},
         {
           "type": "checkpoint"
         }

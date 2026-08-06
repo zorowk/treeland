@@ -1,8 +1,10 @@
 {
   "protocol": "treeland_output-manager_v1",
+  "description": "Smoke test (needs wl_output hardware fixture)",
   "tests": [
     {
-      "name": "set_primary_output-smoke",
+      "name": "smoke-set_primary_output",
+      "description": "Verifies client can bind, send set_primary_output, and not crash. needs wl_output hardware fixture",
       "steps": [
         {
           "type": "request",

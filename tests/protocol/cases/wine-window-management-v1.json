@@ -1,14 +1,17 @@
 {
-  "protocol": "treeland_wine-window-management_unstable_v1",
+  "protocol": "treeland_wine-window-management_v1",
+  "description": "Smoke test (needs xdg_toplevel surface fixture)",
   "tests": [
     {
-      "name": "get_window_control-smoke",
+      "name": "smoke-get_window_control",
+      "description": "Verifies client can bind, send get_window_control, and not crash. needs xdg_toplevel surface fixture",
       "steps": [
         {
           "type": "request",
           "name": "get_window_control",
           "args": []
         },
+        {},
         {
           "type": "checkpoint"
         }

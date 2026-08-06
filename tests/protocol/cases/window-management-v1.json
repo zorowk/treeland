@@ -1,0 +1,68 @@
+{
+  "description": "Desktop state management \u2014 set_desktop triggers show_desktop",
+  "tests": [
+    {
+      "name": "set-desktop-show",
+      "description": "XML: server broadcasts show_desktop when state changes",
+      "steps": [
+        {
+          "type": "request",
+          "name": "set_desktop",
+          "args": [
+            1
+          ]
+        },
+        {
+          "type": "roundtrip"
+        },
+        {
+          "type": "checkpoint"
+        }
+      ],
+      "expected": {
+        "events": [
+          {
+            "event": "show_desktop",
+            "args": [
+              {
+                "type": "uint",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "set-desktop-normal",
+      "steps": [
+        {
+          "type": "request",
+          "name": "set_desktop",
+          "args": [
+            0
+          ]
+        },
+        {
+          "type": "roundtrip"
+        },
+        {
+          "type": "checkpoint"
+        }
+      ],
+      "expected": {
+        "events": [
+          {
+            "event": "show_desktop",
+            "args": [
+              {
+                "type": "uint",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,14 +1,16 @@
 {
   "protocol": "treeland_virtual-output-manager_v1",
+  "description": "Smoke test (needs headless output configuration)",
   "tests": [
     {
-      "name": "create_virtual_output-smoke",
+      "name": "smoke-create_virtual_output",
+      "description": "Verifies client can bind, send create_virtual_output, and not crash. needs headless output configuration",
       "steps": [
         {
           "type": "request",
           "name": "create_virtual_output",
           "args": [
-            "test",
+            "test-smoke",
             "hex:00"
           ]
         },

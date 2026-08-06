@@ -1,13 +1,22 @@
 {
   "protocol": "treeland_screensaver_v1",
+  "description": "Smoke test (protocol has no events \u2014 client can only send requests)",
   "tests": [
     {
-      "name": "inhibit-smoke",
+      "name": "smoke-inhibit",
+      "description": "Verifies client can bind, send inhibit, and not crash. protocol has no events \u2014 client can only send requests",
       "steps": [
         {
           "type": "request",
           "name": "inhibit",
-          "args": []
+          "args": [
+            "test",
+            "-",
+            "-"
+          ]
+        },
+        {
+          "type": "roundtrip"
         },
         {
           "type": "checkpoint"

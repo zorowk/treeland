@@ -1,14 +1,17 @@
 {
-  "protocol": "treeland_keyboard-state-notify_unstable_v1",
+  "protocol": "treeland_keyboard-state-notify_v1",
+  "description": "Smoke test (needs wl_seat + keyboard modifier state fixture)",
   "tests": [
     {
-      "name": "get_keyboard_state_watcher-smoke",
+      "name": "smoke-get_keyboard_state_watcher",
+      "description": "Verifies client can bind, send get_keyboard_state_watcher, and not crash. needs wl_seat + keyboard modifier state fixture",
       "steps": [
         {
           "type": "request",
           "name": "get_keyboard_state_watcher",
           "args": []
         },
+        {},
         {
           "type": "checkpoint"
         }

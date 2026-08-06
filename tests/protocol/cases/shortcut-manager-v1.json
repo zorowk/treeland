@@ -1,8 +1,10 @@
 {
   "protocol": "treeland_shortcut-manager_v1",
+  "description": "Smoke test (needs keyboard input fixture)",
   "tests": [
     {
-      "name": "register_shortcut_context-smoke",
+      "name": "smoke-register_shortcut_context",
+      "description": "Verifies client can bind, send register_shortcut_context, and not crash. needs keyboard input fixture",
       "steps": [
         {
           "type": "request",

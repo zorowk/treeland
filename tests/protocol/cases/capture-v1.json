@@ -1,14 +1,17 @@
 {
-  "protocol": "treeland_capture_unstable_v1",
+  "protocol": "treeland_capture_v1",
+  "description": "Smoke test (needs wl_surface + pipewire stream fixture)",
   "tests": [
     {
-      "name": "start-smoke",
+      "name": "smoke-start",
+      "description": "Verifies client can bind, send start, and not crash. needs wl_surface + pipewire stream fixture",
       "steps": [
         {
           "type": "request",
           "name": "start",
           "args": []
         },
+        {},
         {
           "type": "checkpoint"
         }

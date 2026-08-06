@@ -1,14 +1,17 @@
 {
   "protocol": "treeland_ddm_v1",
+  "description": "Smoke test (needs DDM display manager state fixture)",
   "tests": [
     {
-      "name": "switch_to_greeter-smoke",
+      "name": "smoke-switch_to_greeter",
+      "description": "Verifies client can bind, send switch_to_greeter, and not crash. needs DDM display manager state fixture",
       "steps": [
         {
           "type": "request",
           "name": "switch_to_greeter",
           "args": []
         },
+        {},
         {
           "type": "checkpoint"
         }

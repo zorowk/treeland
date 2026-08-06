@@ -1,8 +1,9 @@
 {
-  "protocol": "treeland_wallpaper-color_v1",
+  "description": "Wallpaper color monitoring",
   "tests": [
     {
-      "name": "watch-smoke",
+      "name": "watch-triggers-output-color",
+      "description": "XML: output_color sent immediately when client requests a watch",
       "steps": [
         {
           "type": "request",
@@ -19,7 +20,21 @@
         }
       ],
       "expected": {
-        "events": []
+        "events": [
+          {
+            "event": "output_color",
+            "args": [
+              {
+                "type": "string",
+                "value": "HEADLESS-1"
+              },
+              {
+                "type": "uint",
+                "value": 0
+              }
+            ]
+          }
+        ]
       }
     }
   ]
