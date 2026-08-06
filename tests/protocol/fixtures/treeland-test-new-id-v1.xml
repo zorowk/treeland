@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 OR LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only -->
+<protocol name="treeland_test_new_id_v1">
+  <interface name="treeland_test_new_id_v1" version="1">
+    <description summary="event new_id protocol test fixture">
+      Exercises Wayland event new_id proxy creation and child listener installation.
+    </description>
+    <request name="create_child"/>
+    <request name="destroy" type="destructor"/>
+    <event name="child_created">
+      <description summary="a child object was created"/>
+      <arg name="id" type="new_id" interface="treeland_test_child_v1"/>
+    </event>
+  </interface>
+  <interface name="treeland_test_child_v1" version="1">
+    <description summary="child object for new_id testing"/>
+    <event name="done">
+      <description summary="child creation complete"/>
+      <arg name="value" type="uint"/>
+    </event>
+  </interface>
+</protocol>

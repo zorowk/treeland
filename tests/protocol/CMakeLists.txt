@@ -1,0 +1,184 @@
+find_package(Qt6 REQUIRED COMPONENTS Core)
+find_package(TreelandProtocols REQUIRED)
+pkg_search_module(WAYLAND_CLIENT REQUIRED IMPORTED_TARGET wayland-client)
+pkg_search_module(WAYLAND_SERVER REQUIRED IMPORTED_TARGET wayland-server)
+pkg_get_variable(WAYLAND_SCANNER wayland-scanner wayland_scanner)
+
+# ---- Test protocol fixtures (self-contained, not from TreelandProtocols) ----
+
+set(fixed_test_xml      ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/treeland-test-fixed-v1.xml)
+set(fixed_generated_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-test-fixed-v1)
+set(fixed_client_header  ${fixed_generated_directory}/wayland-treeland-test-fixed-v1-client-protocol.h)
+set(fixed_client_code    ${fixed_generated_directory}/wayland-treeland-test-fixed-v1-client-protocol.c)
+set(fixed_server_header  ${fixed_generated_directory}/wayland-treeland-test-fixed-v1-server-protocol.h)
+
+set(array_test_xml      ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/treeland-test-array-v1.xml)
+set(array_generated_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-test-array-v1)
+set(array_client_header  ${array_generated_directory}/wayland-treeland-test-array-v1-client-protocol.h)
+set(array_client_code    ${array_generated_directory}/wayland-treeland-test-array-v1-client-protocol.c)
+set(array_server_header  ${array_generated_directory}/wayland-treeland-test-array-v1-server-protocol.h)
+
+set(fd_test_xml         ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/treeland-test-fd-v1.xml)
+set(fd_generated_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-test-fd-v1)
+set(fd_client_header     ${fd_generated_directory}/wayland-treeland-test-fd-v1-client-protocol.h)
+set(fd_client_code       ${fd_generated_directory}/wayland-treeland-test-fd-v1-client-protocol.c)
+set(fd_server_header     ${fd_generated_directory}/wayland-treeland-test-fd-v1-server-protocol.h)
+
+set(new_id_test_xml     ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/treeland-test-new-id-v1.xml)
+set(new_id_generated_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-test-new-id-v1)
+set(new_id_client_header ${new_id_generated_directory}/wayland-treeland-test-new-id-v1-client-protocol.h)
+set(new_id_client_code   ${new_id_generated_directory}/wayland-treeland-test-new-id-v1-client-protocol.c)
+set(new_id_server_header ${new_id_generated_directory}/wayland-treeland-test-new-id-v1-server-protocol.h)
+
+set(multi_arg_test_xml   ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/treeland-test-multi-arg-v1.xml)
+set(multi_arg_generated_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-test-multi-arg-v1)
+set(multi_arg_client_header ${multi_arg_generated_directory}/wayland-treeland-test-multi-arg-v1-client-protocol.h)
+set(multi_arg_client_code   ${multi_arg_generated_directory}/wayland-treeland-test-multi-arg-v1-client-protocol.c)
+set(multi_arg_server_header ${multi_arg_generated_directory}/wayland-treeland-test-multi-arg-v1-server-protocol.h)
+
+set(obj_newid_test_xml   ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/treeland-test-object-newid-v1.xml)
+set(obj_newid_generated_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-test-object-newid-v1)
+set(obj_newid_client_header ${obj_newid_generated_directory}/wayland-treeland-test-object-newid-v1-client-protocol.h)
+set(obj_newid_client_code   ${obj_newid_generated_directory}/wayland-treeland-test-object-newid-v1-client-protocol.c)
+set(obj_newid_server_header ${obj_newid_generated_directory}/wayland-treeland-test-object-newid-v1-server-protocol.h)
+
+# ---- wayland-scanner: wire stubs for each test fixture ----
+function(add_fixture_stubs XML_VAR GEN_DIR CLIENT_H CLIENT_C SERVER_H)
+    add_custom_command(
+        OUTPUT ${${CLIENT_H}} ${${CLIENT_C}} ${${SERVER_H}}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${${GEN_DIR}}
+        COMMAND ${WAYLAND_SCANNER} client-header ${${XML_VAR}} ${${CLIENT_H}}
+        COMMAND ${WAYLAND_SCANNER} private-code ${${XML_VAR}} ${${CLIENT_C}}
+        COMMAND ${WAYLAND_SCANNER} server-header ${${XML_VAR}} ${${SERVER_H}}
+        DEPENDS ${${XML_VAR}}
+        VERBATIM
+    )
+endfunction()
+
+add_fixture_stubs(fixed_test_xml fixed_generated_directory fixed_client_header fixed_client_code fixed_server_header)
+add_fixture_stubs(array_test_xml array_generated_directory array_client_header array_client_code array_server_header)
+add_fixture_stubs(fd_test_xml fd_generated_directory fd_client_header fd_client_code fd_server_header)
+add_fixture_stubs(new_id_test_xml new_id_generated_directory new_id_client_header new_id_client_code new_id_server_header)
+add_fixture_stubs(multi_arg_test_xml multi_arg_generated_directory multi_arg_client_header multi_arg_client_code multi_arg_server_header)
+add_fixture_stubs(obj_newid_test_xml obj_newid_generated_directory obj_newid_client_header obj_newid_client_code obj_newid_server_header)
+
+# ---- gen-test-client: standalone C test client generator ----
+add_subdirectory(gen-test-client)
+
+# ---- E2E test helper ----
+function(add_gen_client_test TEST_NAME XML_VAR GEN_DIR CLIENT_LIBS SERVER_SRC SERVER_LIBS REQUEST EXPECT)
+    set(GEN_SRC ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${TEST_NAME}-gen.c)
+    set(GEN_BIN ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${TEST_NAME}-gen-client)
+    add_custom_command(OUTPUT ${GEN_SRC}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output
+        COMMAND gen-test-client ${${XML_VAR}} ${GEN_SRC}
+        DEPENDS gen-test-client ${${XML_VAR}} VERBATIM)
+    add_executable(${TEST_NAME}-gen-client ${GEN_SRC} ${${CLIENT_LIBS}})
+    target_include_directories(${TEST_NAME}-gen-client PRIVATE ${${GEN_DIR}})
+    target_link_libraries(${TEST_NAME}-gen-client PRIVATE PkgConfig::WAYLAND_CLIENT)
+    set_target_properties(${TEST_NAME}-gen-client PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output)
+    add_executable(${TEST_NAME}-echo-server ${SERVER_SRC} ${${SERVER_LIBS}})
+    target_include_directories(${TEST_NAME}-echo-server PRIVATE ${${GEN_DIR}})
+    target_link_libraries(${TEST_NAME}-echo-server PRIVATE PkgConfig::WAYLAND_SERVER)
+    add_executable(${TEST_NAME}-e2e gencliente2etest.cpp)
+    target_compile_definitions(${TEST_NAME}-e2e PRIVATE
+        TL_CLIENT_PATH="${GEN_BIN}" TL_SERVER_PATH="$<TARGET_FILE:${TEST_NAME}-echo-server>"
+        TL_REQUEST="${REQUEST}" TL_EXPECT="${EXPECT}")
+    target_link_libraries(${TEST_NAME}-e2e PRIVATE Qt6::Core)
+    add_dependencies(${TEST_NAME}-e2e ${TEST_NAME}-gen-client ${TEST_NAME}-echo-server)
+    add_test(NAME ${TEST_NAME}-e2e COMMAND ${TEST_NAME}-e2e)
+    set_tests_properties(${TEST_NAME}-e2e PROPERTIES LABELS "protocol-wire;gen-client" TIMEOUT 15)
+endfunction()
+
+add_gen_client_test(test-multi-arg   multi_arg_test_xml   multi_arg_generated_directory   multi_arg_client_code   echoserver.c       multi_arg_client_code   "echo 42 -7 hello"     "id=42")
+add_gen_client_test(test-fixed       fixed_test_xml       fixed_generated_directory       fixed_client_code       fixedechoserver.c   fixed_client_code       "echo 1.5"             "value=384")
+add_gen_client_test(test-array       array_test_xml       array_generated_directory       array_client_code       arrayechoserver.c   array_client_code       "echo hex:00ff"         "EVENT value")
+add_gen_client_test(test-fd          fd_test_xml          fd_generated_directory          fd_client_code          fdechoserver.c      fd_client_code          "echo fd:pipe"          "EVENT value")
+add_gen_client_test(test-new-id      new_id_test_xml      new_id_generated_directory      new_id_client_code      newidechoserver.c   new_id_client_code      "create_child"          "EVENT treeland_test_child_v1.done")
+add_gen_client_test(test-object-newid obj_newid_test_xml  obj_newid_generated_directory   obj_newid_client_code   objnewidechoserver.c obj_newid_client_code   "create_child"          "EVENT treeland_test_child_v1.done")
+
+# ---- Real treeland protocol tests (via libtreeland + WServer) ----
+
+set(window_management_xml
+    ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-window-management-v1.xml)
+set(wm_generated_directory
+    ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-window-management-v1)
+set(wm_client_header
+    ${wm_generated_directory}/wayland-treeland-window-management-v1-client-protocol.h)
+set(wm_client_code
+    ${wm_generated_directory}/wayland-treeland-window-management-v1-client-protocol.c)
+
+add_custom_command(
+    OUTPUT ${wm_client_header} ${wm_client_code}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${wm_generated_directory}
+    COMMAND ${WAYLAND_SCANNER} client-header ${window_management_xml} ${wm_client_header}
+    COMMAND ${WAYLAND_SCANNER} private-code ${window_management_xml} ${wm_client_code}
+    DEPENDS ${window_management_xml}
+    VERBATIM
+)
+
+function(add_treeland_test TEST_NAME XML_VAR GEN_DIR CLIENT_LIBS REQUEST EXPECT)
+    set(GEN_SRC ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${TEST_NAME}-gen.c)
+    set(GEN_BIN ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${TEST_NAME}-gen-client)
+    add_custom_command(OUTPUT ${GEN_SRC}
+        COMMAND gen-test-client ${${XML_VAR}} ${GEN_SRC}
+        DEPENDS gen-test-client ${${XML_VAR}} VERBATIM)
+    add_executable(${TEST_NAME}-gen-client ${GEN_SRC} ${${CLIENT_LIBS}})
+    target_include_directories(${TEST_NAME}-gen-client PRIVATE ${${GEN_DIR}})
+    target_link_libraries(${TEST_NAME}-gen-client PRIVATE PkgConfig::WAYLAND_CLIENT)
+    set_target_properties(${TEST_NAME}-gen-client PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output)
+
+    add_executable(${TEST_NAME}-treeland-e2e treeland-controller.cpp)
+    target_include_directories(${TEST_NAME}-treeland-e2e PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/modules/window-management)
+    target_compile_definitions(${TEST_NAME}-treeland-e2e PRIVATE
+        TL_CLIENT_PATH="${GEN_BIN}"
+        TL_CLIENT_ARGS="${REQUEST}"
+        TL_EXPECT="${EXPECT}")
+    target_link_libraries(${TEST_NAME}-treeland-e2e
+        PRIVATE Qt6::Core libtreeland)
+    add_dependencies(${TEST_NAME}-treeland-e2e ${TEST_NAME}-gen-client)
+    add_test(NAME ${TEST_NAME}-treeland-e2e COMMAND ${TEST_NAME}-treeland-e2e)
+    set_tests_properties(${TEST_NAME}-treeland-e2e PROPERTIES
+        LABELS "protocol-high;treeland" TIMEOUT 30)
+endfunction()
+
+add_treeland_test(test-wm window_management_xml wm_generated_directory wm_client_code
+    "--request set_desktop 1 --roundtrip --checkpoint"
+    "EVENT show_desktop state=1")
+message(STATUS "treeland test section reached")
+
+# ---- JSON-driven protocol tests ----
+
+# ---- JSON-driven protocol tests (single-file per protocol) ----
+
+# ---- JSON-driven protocol tests ----
+function(add_json_protocol_test NAME XML_VAR GEN_DIR CLIENT_LIBS MODULE_HEADER MODULE_CLASS MODULE_DIR)
+    set(GEN_SRC ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${NAME}-json-gen.c)
+    set(GEN_BIN ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${NAME}-json-gen-client)
+    add_custom_command(OUTPUT ${GEN_SRC}
+        COMMAND gen-test-client ${${XML_VAR}} ${GEN_SRC}
+        DEPENDS gen-test-client ${${XML_VAR}} VERBATIM)
+    add_executable(${NAME}-json-gen-client ${GEN_SRC} ${${CLIENT_LIBS}})
+    target_include_directories(${NAME}-json-gen-client PRIVATE ${${GEN_DIR}})
+    target_link_libraries(${NAME}-json-gen-client PRIVATE PkgConfig::WAYLAND_CLIENT)
+    set_target_properties(${NAME}-json-gen-client PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output)
+
+    add_executable(${NAME}-json-test json-controller.cpp)
+    target_include_directories(${NAME}-json-test PRIVATE ${CMAKE_SOURCE_DIR}/src/modules/${MODULE_DIR})
+    target_compile_definitions(${NAME}-json-test PRIVATE
+        TL_CLIENT_PATH="${GEN_BIN}"
+        TL_CASE="${CMAKE_CURRENT_SOURCE_DIR}/cases/${MODULE_DIR}.json"
+        TL_MODULE_HEADER_STR="${MODULE_HEADER}"
+        TL_MODULE_CLASS=${MODULE_CLASS})
+    target_link_libraries(${NAME}-json-test PRIVATE Qt6::Core libtreeland)
+    add_dependencies(${NAME}-json-test ${NAME}-json-gen-client)
+    add_test(NAME ${NAME}-json-test COMMAND ${NAME}-json-test)
+    set_tests_properties(${NAME}-json-test PROPERTIES LABELS "protocol-high;json-driven" TIMEOUT 30)
+endfunction()
+
+add_json_protocol_test(test-wm window_management_xml wm_generated_directory wm_client_code
+    "windowmanagementinterfacev1.h" WindowManagementInterfaceV1 window-management)

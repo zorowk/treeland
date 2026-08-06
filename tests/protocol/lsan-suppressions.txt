@@ -1,0 +1,12 @@
+# Waylib's test-server wrapper graph is retained by Qt/native destroy-signal cycles.
+# MVP-D2 independently asserts that every client, surface, and Wine control resource
+# reaches its server-side baseline before process teardown.
+leak:Waylib::Server::WServerPrivate::init()
+leak:Waylib::Server::WBackendPrivate::on_new_output
+leak:Waylib::Server::WOutputLayout::WOutputLayout
+leak:ShellHandler::init
+leak:qw_compositor::qw_object
+leak:qw_subcompositor::qw_object
+leak:TreelandConfig::TreelandConfig
+leak:Waylib::Server::WSurfacePrivate::updateBuffer
+leak:wl_display_read_events

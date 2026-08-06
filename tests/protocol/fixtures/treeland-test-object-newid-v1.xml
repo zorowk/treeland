@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 OR LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only -->
+<protocol name="treeland_test_object_newid_v1">
+  <interface name="treeland_test_object_newid_v1" version="1">
+    <description summary="object and request new_id protocol test fixture">
+      Exercises object parameters in events and new_id arguments in requests.
+    </description>
+    <request name="create_child">
+      <arg name="id" type="new_id" interface="treeland_test_child_v1"/>
+    </request>
+    <request name="destroy" type="destructor"/>
+    <event name="child_created">
+      <arg name="id" type="new_id" interface="treeland_test_child_v1"/>
+    </event>
+    <event name="object_passed">
+      <arg name="obj" type="object" interface="treeland_test_child_v1" allow-null="true"/>
+    </event>
+  </interface>
+  <interface name="treeland_test_child_v1" version="1">
+    <event name="done">
+      <arg name="value" type="uint"/>
+    </event>
+    <request name="destroy" type="destructor"/>
+  </interface>
+</protocol>
