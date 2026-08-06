@@ -6,6 +6,7 @@
 //   -DTL_MODULE_HEADER="windowmanagementinterfacev1.h"
 //   -DTL_MODULE_CLASS=WindowManagementInterfaceV1
 
+#include <stdlib.h>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -48,8 +49,10 @@ int main(int, char **) {
     if (!f.open(QIODevice::ReadOnly)) { fprintf(stderr, "FAIL: read\n"); return 1; }
     QJsonObject doc = QJsonDocument::fromJson(f.readAll()).object();
     QJsonArray tests = doc["tests"].toArray();
-
-    QString sockPath = "/tmp/treeland-json-sock";
+    // Unique socket path per test to avoid conflicts with previous runs
+    QString baseDir = QStringLiteral("/tmp/treeland-test-XXXXXX");
+    if (!mkdtemp(baseDir.data())) { perror("mkdtemp"); return 1; }
+    QString sockPath = baseDir + "/wayland-0";
     QFile::remove(sockPath); QFile::remove(sockPath + ".lock");
 
     auto server = std::make_unique<WServer>();
@@ -57,8 +60,7 @@ int main(int, char **) {
 #ifndef NO_MODULE_ATTACH
     server->attach<TL_MODULE_CLASS>(server.get());
 #endif
-    if (!socket->autoCreate("/tmp/treeland-json")) { fprintf(stderr, "FAIL: socket\n"); return 1; }
-    server->addSocket(socket.get()); server->start();
+    if (!socket->autoCreate(baseDir.toUtf8().constData())) { fprintf(stderr, "FAIL: socket\n"); return 1; }
     for (int i = 0; i < 20 && !QFile::exists(sockPath); i++) QThread::msleep(100);
 
     int passed = 0, failed = 0;
@@ -100,6 +102,8 @@ int main(int, char **) {
         ok ? passed++ : failed++;
     }
     printf("%d/%d passed\n", passed, passed + failed);
+    socket.reset(); server.reset();
     QFile::remove(sockPath); QFile::remove(sockPath + ".lock");
+    rmdir(baseDir.toUtf8().constData());
     return failed ? 1 : 0;
 }
