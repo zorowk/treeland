@@ -100,10 +100,9 @@ int main(int argc, char **argv) {
     auto ifaces = parseProtocol(argv[1]);
     if (ifaces.empty()) { fprintf(stderr, "Parse failed\n"); return 1; }
 
-    // Pick parent: prefer interface with events
-    const Interface *p_parent = &ifaces[0];
-    for (const Interface &iface : ifaces) if (!iface.events.empty()) { p_parent = &iface; break; }
-    const Interface &parent = *p_parent;
+    // Use first interface as parent — it is always the global (manager).
+    // Child interfaces with events are created via new_id, not bound directly.
+    const Interface &parent = ifaces[0];
 
     // Find children referenced by new_id
     std::map<std::string, const Interface *> children;
