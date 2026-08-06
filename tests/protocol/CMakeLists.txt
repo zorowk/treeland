@@ -98,178 +98,93 @@ add_gen_client_test(test-fd          fd_test_xml          fd_generated_directory
 add_gen_client_test(test-new-id      new_id_test_xml      new_id_generated_directory      new_id_client_code      newidechoserver.c   new_id_client_code      "create_child"          "EVENT treeland_test_child_v1.done")
 add_gen_client_test(test-object-newid obj_newid_test_xml  obj_newid_generated_directory   obj_newid_client_code   objnewidechoserver.c obj_newid_client_code   "create_child"          "EVENT treeland_test_child_v1.done")
 
-# ---- Real treeland protocol tests (via libtreeland + WServer) ----
 
-set(window_management_xml
-    ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-window-management-v1.xml)
-set(wm_generated_directory
-    ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-window-management-v1)
-set(wm_client_header
-    ${wm_generated_directory}/wayland-treeland-window-management-v1-client-protocol.h)
-set(wm_client_code
-    ${wm_generated_directory}/wayland-treeland-window-management-v1-client-protocol.c)
+# ============================================================
+# Auto-generated: iterate all treeland protocol XMLs
+# ============================================================
 
-add_custom_command(
-    OUTPUT ${wm_client_header} ${wm_client_code}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${wm_generated_directory}
-    COMMAND ${WAYLAND_SCANNER} client-header ${window_management_xml} ${wm_client_header}
-    COMMAND ${WAYLAND_SCANNER} private-code ${window_management_xml} ${wm_client_code}
-    DEPENDS ${window_management_xml}
-    VERBATIM
+# Module registry: protocol XML → (header, class, module_dir)
+# Only protocols listed here get json-controller tests.
+# Others still get gen-test-client generation.
+set(TREELAND_MODULE_REGISTRY
+    "treeland-window-management-v1|windowmanagementinterfacev1.h|WindowManagementInterfaceV1|window-management"
+    "treeland-wallpaper-color-v1|wallpapercolorinterfacev1.h|WallpaperColorInterfaceV1|wallpaper-color"
+    "treeland-ddm-v1|ddminterfacev1.h|DDMInterfaceV1|ddm"
+    "treeland-screensaver-v1|screensaverinterfacev1.h|ScreensaverInterfaceV1|screensaver"
+    "treeland-virtual-output-manager-v1|virtualoutputmanagerinterfacev1.h|VirtualOutputInterfaceV1|virtual-output"
+    "treeland-keyboard-state-notify-unstable-v1|keyboardstatenotifymanagerinterfacev1.h|KeyboardStateWatcherV1|keyboard-state-notify"
 )
 
-function(add_treeland_test TEST_NAME XML_VAR GEN_DIR CLIENT_LIBS REQUEST EXPECT)
-    set(GEN_SRC ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${TEST_NAME}-gen.c)
-    set(GEN_BIN ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${TEST_NAME}-gen-client)
-    add_custom_command(OUTPUT ${GEN_SRC}
-        COMMAND gen-test-client ${${XML_VAR}} ${GEN_SRC}
-        DEPENDS gen-test-client ${${XML_VAR}} VERBATIM)
-    add_executable(${TEST_NAME}-gen-client ${GEN_SRC} ${${CLIENT_LIBS}})
-    target_include_directories(${TEST_NAME}-gen-client PRIVATE ${${GEN_DIR}})
-    target_link_libraries(${TEST_NAME}-gen-client PRIVATE PkgConfig::WAYLAND_CLIENT)
-    set_target_properties(${TEST_NAME}-gen-client PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output)
+# Find all treeland protocol XMLs
+file(GLOB_RECURSE TREELAND_XMLS "${TREELAND_PROTOCOLS_DATA_DIR}/treeland-*.xml")
 
-    add_executable(${TEST_NAME}-treeland-e2e treeland-controller.cpp)
-    target_include_directories(${TEST_NAME}-treeland-e2e PRIVATE
-        ${CMAKE_SOURCE_DIR}/src/modules/window-management)
-    target_compile_definitions(${TEST_NAME}-treeland-e2e PRIVATE
-        TL_CLIENT_PATH="${GEN_BIN}"
-        TL_CLIENT_ARGS="${REQUEST}"
-        TL_EXPECT="${EXPECT}")
-    target_link_libraries(${TEST_NAME}-treeland-e2e
-        PRIVATE Qt6::Core libtreeland)
-    add_dependencies(${TEST_NAME}-treeland-e2e ${TEST_NAME}-gen-client)
-    add_test(NAME ${TEST_NAME}-treeland-e2e COMMAND ${TEST_NAME}-treeland-e2e)
-    set_tests_properties(${TEST_NAME}-treeland-e2e PROPERTIES
-        LABELS "protocol-high;treeland" TIMEOUT 30)
-endfunction()
+foreach(XML_PATH ${TREELAND_XMLS})
+    # Extract protocol base name from filename
+    get_filename_component(PROTO_FILE "${XML_PATH}" NAME_WE)
+    # treeland-foo-bar-v1 → treeland_foo_bar_v1_xml
+    string(REPLACE "-" "_" PROTO_VAR "${PROTO_FILE}")
 
-add_treeland_test(test-wm window_management_xml wm_generated_directory wm_client_code
-    "--request set_desktop 1 --roundtrip --checkpoint"
-    "EVENT show_desktop state=1")
-message(STATUS "treeland test section reached")
+    # Set variables for this protocol
+    set(${PROTO_VAR}_xml "${XML_PATH}")
+    set(${PROTO_VAR}_gen_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/${PROTO_FILE}")
+    set(${PROTO_VAR}_client_h "${${PROTO_VAR}_gen_dir}/wayland-${PROTO_FILE}-client-protocol.h")
+    set(${PROTO_VAR}_client_c "${${PROTO_VAR}_gen_dir}/wayland-${PROTO_FILE}-client-protocol.c")
 
-# ---- JSON-driven protocol tests ----
+    # Generate wayland-scanner stubs
+    add_custom_command(
+        OUTPUT "${${PROTO_VAR}_client_h}" "${${PROTO_VAR}_client_c}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${${PROTO_VAR}_gen_dir}"
+        COMMAND ${WAYLAND_SCANNER} client-header "${XML_PATH}" "${${PROTO_VAR}_client_h}"
+        COMMAND ${WAYLAND_SCANNER} private-code "${XML_PATH}" "${${PROTO_VAR}_client_c}"
+        DEPENDS "${XML_PATH}"
+        VERBATIM
+    )
 
-# ---- JSON-driven protocol tests (single-file per protocol) ----
+    # Check if this protocol is in the module registry
+    set(FOUND_CLASS "")
+    foreach(ENTRY ${TREELAND_MODULE_REGISTRY})
+        list(GET ENTRY 0 ENTRY_PROTO)
+        if("${PROTO_FILE}" STREQUAL "${ENTRY_PROTO}")
+            list(GET ENTRY 1 ENTRY_HEADER)
+            list(GET ENTRY 2 ENTRY_CLASS)
+            list(GET ENTRY 3 ENTRY_DIR)
+            set(FOUND_CLASS "${ENTRY_CLASS}")
+            set(FOUND_HEADER "${ENTRY_HEADER}")
+            set(FOUND_DIR "${ENTRY_DIR}")
+            break()
+        endif()
+    endforeach()
 
-# ---- JSON-driven protocol tests ----
-function(add_json_protocol_test NAME XML_VAR GEN_DIR CLIENT_LIBS MODULE_HEADER MODULE_CLASS MODULE_DIR JSON_NAME)
-    set(GEN_SRC ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${NAME}-json-gen.c)
-    set(GEN_BIN ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${NAME}-json-gen-client)
-    add_custom_command(OUTPUT ${GEN_SRC}
-        COMMAND gen-test-client ${${XML_VAR}} ${GEN_SRC}
-        DEPENDS gen-test-client ${${XML_VAR}} VERBATIM)
-    add_executable(${NAME}-json-gen-client ${GEN_SRC} ${${CLIENT_LIBS}})
-    target_include_directories(${NAME}-json-gen-client PRIVATE ${${GEN_DIR}})
-    target_link_libraries(${NAME}-json-gen-client PRIVATE PkgConfig::WAYLAND_CLIENT)
-    set_target_properties(${NAME}-json-gen-client PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output)
+    # Generate gen-test-client client (always)
+    set(GEN_CLIENT_SRC "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${PROTO_FILE}-gen.c")
+    add_custom_command(
+        OUTPUT "${GEN_CLIENT_SRC}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output"
+        COMMAND gen-test-client "${XML_PATH}" "${GEN_CLIENT_SRC}"
+        DEPENDS gen-test-client "${XML_PATH}"
+        VERBATIM
+    )
 
-    add_executable(${NAME}-json-test json-controller.cpp)
-    target_include_directories(${NAME}-json-test PRIVATE ${CMAKE_SOURCE_DIR}/src/modules/${MODULE_DIR})
-    target_compile_definitions(${NAME}-json-test PRIVATE
-        TL_CLIENT_PATH="${GEN_BIN}"
-        TL_CASE="${CMAKE_CURRENT_SOURCE_DIR}/cases/${MODULE_DIR}.json"
-        TL_MODULE_HEADER_STR="${MODULE_HEADER}"
-        TL_MODULE_CLASS=${MODULE_CLASS})
-    target_link_libraries(${NAME}-json-test PRIVATE Qt6::Core libtreeland)
-    add_dependencies(${NAME}-json-test ${NAME}-json-gen-client)
-    add_test(NAME ${NAME}-json-test COMMAND ${NAME}-json-test)
-    set_tests_properties(${NAME}-json-test PROPERTIES LABELS "protocol-high;json-driven" TIMEOUT 30)
-endfunction()
+    # If in registry, also build json-controller test
+    if(FOUND_CLASS)
+        add_json_protocol_test("${PROTO_FILE}"
+            ${PROTO_VAR}_xml ${PROTO_VAR}_gen_dir ${PROTO_VAR}_client_c
+            "${FOUND_HEADER}" "${FOUND_CLASS}" "${FOUND_DIR}" "${PROTO_FILE}")
+    endif()
+endforeach()
 
-add_json_protocol_test(test-wm window_management_xml wm_generated_directory wm_client_code
-    "windowmanagementinterfacev1.h" WindowManagementInterfaceV1 window-management treeland-window-management-v1)
-
-
-set(ddm_xml ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v1.xml)
-set(ddm_gen_dir ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-ddm-v1)
-set(ddm_client_h ${ddm_gen_dir}/wayland-treeland-ddm-v1-client-protocol.h)
-set(ddm_client_c ${ddm_gen_dir}/wayland-treeland-ddm-v1-client-protocol.c)
-add_custom_command(OUTPUT ${ddm_client_h} ${ddm_client_c}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${ddm_gen_dir}
-    COMMAND ${WAYLAND_SCANNER} client-header ${ddm_xml} ${ddm_client_h}
-    COMMAND ${WAYLAND_SCANNER} private-code ${ddm_xml} ${ddm_client_c}
-    DEPENDS ${ddm_xml} VERBATIM)
-add_json_protocol_test(test-ddm ddm_xml ddm_gen_dir ddm_client_c
-    "ddminterfacev1.h" DDMInterfaceV1 ddm treeland-ddm-v1)
-
-set(vo_xml ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-virtual-output-manager-v1.xml)
-set(vo_gen_dir ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-virtual-output-manager-v1)
-set(vo_client_h ${vo_gen_dir}/wayland-treeland-virtual-output-manager-v1-client-protocol.h)
-set(vo_client_c ${vo_gen_dir}/wayland-treeland-virtual-output-manager-v1-client-protocol.c)
-add_custom_command(OUTPUT ${vo_client_h} ${vo_client_c}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${vo_gen_dir}
-    COMMAND ${WAYLAND_SCANNER} client-header ${vo_xml} ${vo_client_h}
-    COMMAND ${WAYLAND_SCANNER} private-code ${vo_xml} ${vo_client_c}
-    DEPENDS ${vo_xml} VERBATIM)
-add_json_protocol_test(test-vo vo_xml vo_gen_dir vo_client_c
-    "virtualoutputmanagerinterfacev1.h" VirtualOutputInterfaceV1 virtual-output treeland-virtual-output-manager-v1)
-
-
-# ---- treeland-wallpaper-color-v1 ----
-set(treeland_wallpaper_color_v1_xml ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-wallpaper-color-v1.xml)
-set(treeland_wallpaper_color_v1_gen_dir ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-wallpaper-color-v1)
-set(treeland_wallpaper_color_v1_client_h ${treeland_wallpaper_color_v1_gen_dir}/wayland-treeland-wallpaper-color-v1-client-protocol.h)
-set(treeland_wallpaper_color_v1_client_c ${treeland_wallpaper_color_v1_gen_dir}/wayland-treeland-wallpaper-color-v1-client-protocol.c)
-add_custom_command(OUTPUT ${treeland_wallpaper_color_v1_client_h} ${treeland_wallpaper_color_v1_client_c}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${treeland_wallpaper_color_v1_gen_dir}
-    COMMAND ${WAYLAND_SCANNER} client-header ${treeland_wallpaper_color_v1_xml} ${treeland_wallpaper_color_v1_client_h}
-    COMMAND ${WAYLAND_SCANNER} private-code ${treeland_wallpaper_color_v1_xml} ${treeland_wallpaper_color_v1_client_c}
-    DEPENDS ${treeland_wallpaper_color_v1_xml} VERBATIM)
-add_json_protocol_test(test-treeland-wallpaper-color-v1 treeland_wallpaper_color_v1_xml treeland_wallpaper_color_v1_gen_dir treeland_wallpaper_color_v1_client_c
-    "wallpapercolorinterfacev1.h" WallpaperColorInterfaceV1 wallpaper-color treeland-wallpaper-color-v1)
-
-# ---- treeland-ddm-v1 ----
-set(treeland_ddm_v1_xml ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v1.xml)
-set(treeland_ddm_v1_gen_dir ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-ddm-v1)
-set(treeland_ddm_v1_client_h ${treeland_ddm_v1_gen_dir}/wayland-treeland-ddm-v1-client-protocol.h)
-set(treeland_ddm_v1_client_c ${treeland_ddm_v1_gen_dir}/wayland-treeland-ddm-v1-client-protocol.c)
-add_custom_command(OUTPUT ${treeland_ddm_v1_client_h} ${treeland_ddm_v1_client_c}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${treeland_ddm_v1_gen_dir}
-    COMMAND ${WAYLAND_SCANNER} client-header ${treeland_ddm_v1_xml} ${treeland_ddm_v1_client_h}
-    COMMAND ${WAYLAND_SCANNER} private-code ${treeland_ddm_v1_xml} ${treeland_ddm_v1_client_c}
-    DEPENDS ${treeland_ddm_v1_xml} VERBATIM)
-add_json_protocol_test(test-treeland-ddm-v1 treeland_ddm_v1_xml treeland_ddm_v1_gen_dir treeland_ddm_v1_client_c
-    "ddminterfacev1.h" DDMInterfaceV1 ddm treeland-ddm-v1)
-
-# ---- treeland-screensaver-v1 ----
-set(treeland_screensaver_v1_xml ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-screensaver-v1.xml)
-set(treeland_screensaver_v1_gen_dir ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-screensaver-v1)
-set(treeland_screensaver_v1_client_h ${treeland_screensaver_v1_gen_dir}/wayland-treeland-screensaver-v1-client-protocol.h)
-set(treeland_screensaver_v1_client_c ${treeland_screensaver_v1_gen_dir}/wayland-treeland-screensaver-v1-client-protocol.c)
-add_custom_command(OUTPUT ${treeland_screensaver_v1_client_h} ${treeland_screensaver_v1_client_c}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${treeland_screensaver_v1_gen_dir}
-    COMMAND ${WAYLAND_SCANNER} client-header ${treeland_screensaver_v1_xml} ${treeland_screensaver_v1_client_h}
-    COMMAND ${WAYLAND_SCANNER} private-code ${treeland_screensaver_v1_xml} ${treeland_screensaver_v1_client_c}
-    DEPENDS ${treeland_screensaver_v1_xml} VERBATIM)
-add_json_protocol_test(test-treeland-screensaver-v1 treeland_screensaver_v1_xml treeland_screensaver_v1_gen_dir treeland_screensaver_v1_client_c
-    "screensaverinterfacev1.h" ScreensaverInterfaceV1 screensaver treeland-screensaver-v1)
-
-# ---- treeland-virtual-output-manager-v1 ----
-set(treeland_virtual_output_manager_v1_xml ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-virtual-output-manager-v1.xml)
-set(treeland_virtual_output_manager_v1_gen_dir ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-virtual-output-manager-v1)
-set(treeland_virtual_output_manager_v1_client_h ${treeland_virtual_output_manager_v1_gen_dir}/wayland-treeland-virtual-output-manager-v1-client-protocol.h)
-set(treeland_virtual_output_manager_v1_client_c ${treeland_virtual_output_manager_v1_gen_dir}/wayland-treeland-virtual-output-manager-v1-client-protocol.c)
-add_custom_command(OUTPUT ${treeland_virtual_output_manager_v1_client_h} ${treeland_virtual_output_manager_v1_client_c}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${treeland_virtual_output_manager_v1_gen_dir}
-    COMMAND ${WAYLAND_SCANNER} client-header ${treeland_virtual_output_manager_v1_xml} ${treeland_virtual_output_manager_v1_client_h}
-    COMMAND ${WAYLAND_SCANNER} private-code ${treeland_virtual_output_manager_v1_xml} ${treeland_virtual_output_manager_v1_client_c}
-    DEPENDS ${treeland_virtual_output_manager_v1_xml} VERBATIM)
-add_json_protocol_test(test-treeland-virtual-output-manager-v1 treeland_virtual_output_manager_v1_xml treeland_virtual_output_manager_v1_gen_dir treeland_virtual_output_manager_v1_client_c
-    "virtualoutputmanagerinterfacev1.h" VirtualOutputInterfaceV1 virtual-output treeland-virtual-output-manager-v1)
-
-# ---- treeland-keyboard-state-notify-unstable-v1 ----
-set(treeland_keyboard_state_notify_unstable_v1_xml ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-keyboard-state-notify-unstable-v1.xml)
-set(treeland_keyboard_state_notify_unstable_v1_gen_dir ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-keyboard-state-notify-unstable-v1)
-set(treeland_keyboard_state_notify_unstable_v1_client_h ${treeland_keyboard_state_notify_unstable_v1_gen_dir}/wayland-treeland-keyboard-state-notify-unstable-v1-client-protocol.h)
-set(treeland_keyboard_state_notify_unstable_v1_client_c ${treeland_keyboard_state_notify_unstable_v1_gen_dir}/wayland-treeland-keyboard-state-notify-unstable-v1-client-protocol.c)
-add_custom_command(OUTPUT ${treeland_keyboard_state_notify_unstable_v1_client_h} ${treeland_keyboard_state_notify_unstable_v1_client_c}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${treeland_keyboard_state_notify_unstable_v1_gen_dir}
-    COMMAND ${WAYLAND_SCANNER} client-header ${treeland_keyboard_state_notify_unstable_v1_xml} ${treeland_keyboard_state_notify_unstable_v1_client_h}
-    COMMAND ${WAYLAND_SCANNER} private-code ${treeland_keyboard_state_notify_unstable_v1_xml} ${treeland_keyboard_state_notify_unstable_v1_client_c}
-    DEPENDS ${treeland_keyboard_state_notify_unstable_v1_xml} VERBATIM)
-add_json_protocol_test(test-treeland-keyboard-state-notify-unstable-v1 treeland_keyboard_state_notify_unstable_v1_xml treeland_keyboard_state_notify_unstable_v1_gen_dir treeland_keyboard_state_notify_unstable_v1_client_c
-    "keyboardstatenotifymanagerinterfacev1.h" KeyboardStateWatcherV1 keyboard-state-notify treeland-keyboard-state-notify-unstable-v1)
+# Also scan standard wayland protocols
+file(GLOB_RECURSE WAYLAND_XMLS "/usr/share/wayland-protocols/*.xml")
+foreach(XML_PATH ${WAYLAND_XMLS})
+    get_filename_component(PROTO_FILE "${XML_PATH}" NAME_WE)
+    string(REPLACE "-" "_" PROTO_VAR "${PROTO_FILE}")
+    set(${PROTO_VAR}_client_h "${CMAKE_CURRENT_BINARY_DIR}/generated/${PROTO_FILE}/wayland-${PROTO_FILE}-client-protocol.h")
+    set(${PROTO_VAR}_client_c "${CMAKE_CURRENT_BINARY_DIR}/generated/${PROTO_FILE}/wayland-${PROTO_FILE}-client-protocol.c")
+    add_custom_command(
+        OUTPUT "${${PROTO_VAR}_client_h}" "${${PROTO_VAR}_client_c}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/generated/${PROTO_FILE}"
+        COMMAND ${WAYLAND_SCANNER} client-header "${XML_PATH}" "${${PROTO_VAR}_client_h}"
+        COMMAND ${WAYLAND_SCANNER} private-code "${XML_PATH}" "${${PROTO_VAR}_client_c}"
+        DEPENDS "${XML_PATH}" VERBATIM
+    )
+endforeach()
