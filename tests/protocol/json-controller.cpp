@@ -15,7 +15,9 @@
 
 #include <WServer>
 #include <wsocket.h>
+#ifndef NO_MODULE_ATTACH
 #include TL_MODULE_HEADER_STR
+#endif
 
 using namespace WAYLIB_SERVER_NAMESPACE;
 
