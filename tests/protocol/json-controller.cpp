@@ -52,7 +52,9 @@ int main(int, char **) {
 
     auto server = std::make_unique<WServer>();
     auto socket = std::make_unique<WSocket>(false);
+#ifndef NO_MODULE_ATTACH
     server->attach<TL_MODULE_CLASS>(server.get());
+#endif
     if (!socket->autoCreate("/tmp/treeland-json")) { fprintf(stderr, "FAIL: socket\n"); return 1; }
     server->addSocket(socket.get()); server->start();
     for (int i = 0; i < 20 && !QFile::exists(sockPath); i++) QThread::msleep(100);

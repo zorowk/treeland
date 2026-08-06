@@ -173,6 +173,33 @@ foreach(XML_PATH ${TREELAND_XMLS})
     endif()
 endforeach()
 
+
+function(add_wayland_protocol_test NAME PROTO_FILE CLIENT_H CLIENT_C)
+    set(GEN_SRC "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${PROTO_FILE}-gen.c")
+    set(GEN_BIN "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${PROTO_FILE}-gen-client")
+    
+    # Already have wayland-scanner stubs from the loop
+    # Already have gen-test-client generation from the loop
+    
+    add_executable("${NAME}-gen-client" "${GEN_SRC}" "${CLIENT_C}")
+    target_include_directories("${NAME}-gen-client" PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated/${PROTO_FILE}")
+    target_link_libraries("${NAME}-gen-client" PRIVATE PkgConfig::WAYLAND_CLIENT)
+    set_target_properties("${NAME}-gen-client" PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output")
+    
+    add_executable("${NAME}-json-test" json-controller.cpp)
+    target_compile_definitions("${NAME}-json-test" PRIVATE
+        TL_CLIENT_PATH="${GEN_BIN}"
+        TL_CASE="${CMAKE_CURRENT_SOURCE_DIR}/cases/${PROTO_FILE}.json"
+        TL_MODULE_HEADER_STR=""
+        TL_MODULE_CLASS=int
+        NO_MODULE_ATTACH)
+    target_link_libraries("${NAME}-json-test" PRIVATE Qt6::Core libtreeland)
+    add_dependencies("${NAME}-json-test" "${NAME}-gen-client")
+    add_test(NAME "${NAME}-json-test" COMMAND "${NAME}-json-test")
+    set_tests_properties("${NAME}-json-test" PROPERTIES LABELS "protocol-high;std-wayland" TIMEOUT 30)
+endfunction()
+
 # Also scan standard wayland protocols
 file(GLOB_RECURSE WAYLAND_XMLS "/usr/share/wayland-protocols/*.xml")
 foreach(XML_PATH ${WAYLAND_XMLS})
@@ -187,4 +214,17 @@ foreach(XML_PATH ${WAYLAND_XMLS})
         COMMAND ${WAYLAND_SCANNER} private-code "${XML_PATH}" "${${PROTO_VAR}_client_c}"
         DEPENDS "${XML_PATH}" VERBATIM
     )
+    
+    # Generate gen-test-client for standard protocols too
+    set(GEN_CLIENT_SRC "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${PROTO_FILE}-gen.c")
+    add_custom_command(
+        OUTPUT "${GEN_CLIENT_SRC}"
+        COMMAND gen-test-client "${XML_PATH}" "${GEN_CLIENT_SRC}"
+        DEPENDS gen-test-client "${XML_PATH}" VERBATIM
+    )
+    
+    # Add test for protocols we have JSON cases for
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cases/${PROTO_FILE}.json")
+        add_wayland_protocol_test("std-${PROTO_FILE}" "${PROTO_FILE}" "${${PROTO_VAR}_client_h}" "${${PROTO_VAR}_client_c}")
+    endif()
 endforeach()
