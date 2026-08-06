@@ -169,3 +169,46 @@ QT_QPA_PLATFORM=offscreen ctest --test-dir build-feat-testprotocol -L gen-client
 - json-controller currently hardcodes WindowManagementInterfaceV1; needs registry for other modules
 - Fixture-based E2E tests use hand-rolled echo servers; treeland integration tests use WServer
 - No standard wayland protocol tests yet (xdg-shell, wl_output, etc.)
+
+## Full Protocol Coverage Strategy
+
+Two protocol sources, two testing approaches:
+
+### Treeland private protocols (21 in /usr/share/treeland-protocols/)
+
+Compiled from XML by treeland. Each has a src/modules/<name>/ implementation.
+Testing requires json-controller to attach the specific module.
+
+Status: all 21 compile via gen-test-client. Only window-management has a
+JSON test case. Remaining 20 need:
+1. JSON case file in tests/protocol/cases/<module>.json
+2. CMake rule: add_json_protocol_test(...)
+
+### Standard Wayland protocols (55 in /usr/share/wayland-protocols/)
+
+Implemented by wlroots. WServer auto-registers them - no attach<>() needed.
+gen-test-client generates clients from any wayland XML.
+
+Testing a standard protocol:
+1. gen-test-client /usr/share/wayland-protocols/.../xxx.xml → client.c
+2. Start treeland headless (WServer auto-provides all wlroots protocols)
+3. Spawn client, check EVENT output
+
+No per-protocol CMake module rules needed. Share a generic controller.
+
+### What's practical to test
+
+| Category | Count | Testable | Notes |
+|----------|-------|----------|-------|
+| Treeland private | 21 | All 21 | Need JSON case per protocol |
+| Wayland core (xdg-shell, etc.) | 5 | Yes | Basic request→event |
+| Wayland staging | 30 | Some | Pick simple API ones |
+| Wayland hardware (drm, dmabuf) | 10 | No | Need GPU/hardware |
+| Wayland unstable | 10 | Some | Legacy, low priority |
+
+### Priority
+
+1. Write JSON cases for remaining 20 treeland protocols
+2. Add generic standard-protocol controller (WServer only)
+3. Test xdg-shell, wl_output, xdg-activation (most used)
+4. Extend to other staging protocols as needed
