@@ -162,6 +162,18 @@ int main(int argc, char **argv) {
     // PARENT_DESTROY
     tmpl = replace(tmpl, "PARENT_DESTROY", parent.name + "_destroy");
 
+    // Fixture detection: check if protocol needs surface/seat/output fixtures
+    bool needSurface = false;
+    for (const Event &ev : parent.requests)
+        for (const Argument &a : ev.arguments) {
+            if (a.type == "object" && a.interfaceName == "xdg_toplevel") needSurface = true;
+            if (a.type == "object" && a.interfaceName == "wl_surface") needSurface = true;
+        }
+    
+    std::string fixtureDefines;
+    if (needSurface) fixtureDefines += "#define NEED_SURFACE_FIXTURE\n";
+    tmpl = replace(tmpl, "FIXTURE_DEFINES", fixtureDefines);
+
     // CHILD_GLOBALS
     std::vector<std::string> cg;
     for (auto &kv : children)
@@ -262,7 +274,13 @@ int main(int argc, char **argv) {
             const Argument &a = req.arguments[i];
             if (a.type == "new_id") continue;
             if (a.type == "object") {
-                if (a.interfaceName == "wl_surface")
+                if (a.interfaceName == "xdg_toplevel") {
+#ifdef NEED_SURFACE_FIXTURE
+                    r += "        struct xdg_toplevel *a_" + a.name + " = g_xdg_toplevel;\n";
+#else
+                    r += "        void *a_" + a.name + " = NULL;\n";
+#endif
+                } else if (a.interfaceName == "wl_surface")
                     r += "        if (!g_surface && g_compositor) g_surface = wl_compositor_create_surface(g_compositor);\n        struct wl_surface *a_" + a.name + " = g_surface;\n";
                 else if (a.interfaceName == "wl_output")
                     r += "        struct wl_output *a_" + a.name + " = g_output;\n";
@@ -333,6 +351,11 @@ int main(int argc, char **argv) {
     clean.push_back("    if (g_compositor) wl_compositor_destroy(g_compositor);");
     clean.push_back("    if (g_output) wl_output_destroy(g_output);");
     clean.push_back("    if (g_seat) wl_seat_destroy(g_seat);");
+    clean.push_back("#ifdef NEED_SURFACE_FIXTURE");
+    clean.push_back("    if (g_xdg_toplevel) xdg_toplevel_destroy(g_xdg_toplevel);");
+    clean.push_back("    if (g_xdg_surface) xdg_surface_destroy(g_xdg_surface);");
+    clean.push_back("    if (g_xdg_wm_base) xdg_wm_base_destroy(g_xdg_wm_base);");
+    clean.push_back("#endif");
     for (auto &kv : children) {
         clean.push_back("    if (g_child_" + kv.second->name + ") " + kv.first + "_destroy(g_child_" + kv.second->name + ");");
     }
