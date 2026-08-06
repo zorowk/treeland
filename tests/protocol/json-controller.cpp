@@ -14,7 +14,7 @@
 #include <QThread>
 
 #include <WServer>
-#include <WSocket>
+#include <wsocket.h>
 #include TL_MODULE_HEADER_STR
 
 using namespace WAYLIB_SERVER_NAMESPACE;
