@@ -212,3 +212,154 @@ No per-protocol CMake module rules needed. Share a generic controller.
 2. Add generic standard-protocol controller (WServer only)
 3. Test xdg-shell, wl_output, xdg-activation (most used)
 4. Extend to other staging protocols as needed
+
+## How to Run Tests
+
+### 1. Build everything
+
+```bash
+cmake --preset default -B build
+cmake --build build -j$(nproc)
+```
+
+### 2. Gen-client E2E tests (fixture protocols)
+
+Tests the gen-test-client generator itself via echo servers:
+
+```bash
+ctest --test-dir build -L gen-client --output-on-failure
+```
+
+### 3. JSON-driven treeland protocol tests
+
+Tests real treeland protocols via WServer + module attach:
+
+```bash
+ctest --test-dir build -L json-driven --output-on-failure
+```
+
+### 4. Individual protocol test
+
+```bash
+# Build and run a single protocol test
+cmake --build build --target test-wm-json-test -j8
+ctest --test-dir build -R test-wm-json --output-on-failure
+```
+
+### 5. Add a new treeland protocol to the test suite
+
+1. Verify XML exists: `ls /usr/share/treeland-protocols/treeland-<name>.xml`
+2. Verify gen-test-client compiles:
+   ```bash
+   ./build/tests/protocol/gen-test-client/gen-test-client \
+       /usr/share/treeland-protocols/treeland-<name>.xml /tmp/test.c
+   ```
+3. Create `tests/protocol/cases/<name>.json` (see JSON format below)
+4. Find the QtWayland class name:
+   ```bash
+   grep 'class ' build/src/modules/<module>/qwayland-server-treeland-*.h
+   ```
+5. Add CMake rules to `tests/protocol/CMakeLists.txt`:
+   - XML variable definition
+   - wayland-scanner custom_command for stubs
+   - `add_json_protocol_test()` call with module header, class, and directory
+
+### 6. Test a standard wayland protocol
+
+```bash
+# Generate client from wayland XML
+gen-test-client /usr/share/wayland-protocols/.../xxx.xml /tmp/client.c
+
+# Compile with wayland-scanner stubs
+wayland-scanner client-header xxx.xml /tmp/wayland-xxx-client-protocol.h
+wayland-scanner private-code xxx.xml /tmp/wayland-xxx-client-protocol.c
+gcc /tmp/client.c /tmp/wayland-xxx-client-protocol.c -lwayland-client -o /tmp/test
+
+# Start treeland, run client
+./treeland --headless &
+/tmp/test --socket /tmp/treeland-wayland-0 --request <name> <args> --roundtrip --checkpoint
+```
+
+## JSON Test Case Format
+
+```json
+{
+  "protocol": "treeland_window_management_v1",
+  "tests": [
+    {
+      "name": "test-name",
+      "steps": [
+        { "type": "request", "name": "set_desktop", "args": [1] },
+        { "type": "roundtrip" },
+        { "type": "checkpoint" }
+      ],
+      "expected": {
+        "events": [
+          { "event": "show_desktop", "args": [{ "type": "uint", "value": 1 }] }
+        ]
+      }
+    }
+  ]
+}
+```
+
+Step types:
+- `"type": "request"` — Send a protocol request. `"name"` matches the XML.
+  `"args"` are values: numbers, strings, `"-"` for null, `"hex:00ff"` for array.
+- `"type": "roundtrip"` — `wl_display_roundtrip()` to flush events.
+- `"type": "checkpoint"` — End of steps, collect events for comparison.
+
+Event args types: `"uint"`, `"int"`, `"string"`, `"fixed"`, `"fd"`, `"array"`.
+
+## CMake Integration
+
+Two functions for adding tests:
+
+### add_gen_client_test — fixture protocol E2E
+```cmake
+add_gen_client_test(test-<name>
+    <xml_var> <gen_dir> <client_code_var>
+    echoserver.c <client_code_var>
+    "<cli-args>" "<expected-output-pattern>")
+```
+Runs against a hand-rolled echo server. Used for the 6 self-contained
+test protocols in `fixtures/`.
+
+### add_json_protocol_test — real treeland protocol
+```cmake
+add_json_protocol_test(test-<name>
+    <xml_var> <gen_dir> <client_code_var>
+    "<module-header.h>" <ModuleClass> <module-dir>)
+```
+Runs against WServer with module attach. JSON case file expected at
+`cases/<module-dir>.json`.
+
+## Complete Protocol List
+
+All 21 treeland protocols in `/usr/share/treeland-protocols/` compile via
+gen-test-client. JSON case files exist for all 21 in `cases/`. CMake rules
+exist for a subset; remaining need mechanical wiring.
+
+| Protocol | JSON | CMake | Notes |
+|----------|------|-------|-------|
+| app-id-resolver | ✅ | ⚠️ | appidresolver.h → AppIdResolverManager |
+| capture | ✅ | - | Needs compositor surface fixture |
+| dde-shell | ✅ | - | Multi-interface, complex |
+| ddm | ✅ | ⚠️ | ddminterfacev1.h → DDMInterfaceV1 |
+| foreign-toplevel | ✅ | - | Needs surface fixture |
+| input-manager | ✅ | - | Needs seat fixture |
+| keyboard-state-notify | ✅ | ⚠️ | keyboardstatenotifymanagerinterfacev1.h → KeyboardStateWatcherV1 |
+| output-manager | ✅ | - | Needs output fixture |
+| personalization | ✅ | - | Needs surface fixture |
+| prelaunch-splash-v1 | ✅ | - | No events, smoke test only |
+| prelaunch-splash-v2 | ✅ | - | No events, smoke test only |
+| screensaver | ✅ | ⚠️ | screensaverinterfacev1.h → ScreensaverInterfaceV1 |
+| shortcut-manager-v1 | ✅ | - | Needs keyboard fixture |
+| shortcut-manager-v2 | ✅ | - | Needs keyboard fixture |
+| virtual-output | ✅ | ⚠️ | virtualoutputmanagerinterfacev1.h → VirtualOutputInterfaceV1 |
+| wallpaper-color | ✅ | ⚠️ | wallpapercolorinterfacev1.h → WallpaperColorInterfaceV1 |
+| wallpaper-manager | ✅ | - | Needs output + surface |
+| wallpaper-shell | ✅ | - | Needs surface fixture |
+| window-management | ✅ | ✅ | Fully wired, 2 test cases |
+| wine-window-management | ✅ | - | Needs xdg-shell fixture |
+| wine-window-state | ✅ | - | Needs xdg-shell fixture |
