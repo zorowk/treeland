@@ -168,8 +168,6 @@ function(add_wayland_protocol_test PROTO_FILE XML_PATH)
     target_compile_definitions("${PROTO_FILE}-json-test" PRIVATE
         TL_CLIENT_PATH="${GEN_BIN}"
         TL_CASE="${CMAKE_CURRENT_SOURCE_DIR}/cases/${PROTO_FILE}.json"
-        TL_MODULE_HEADER_STR=""
-        TL_MODULE_CLASS=int
         NO_MODULE_ATTACH)
     target_link_libraries("${PROTO_FILE}-json-test" PRIVATE Qt6::Core libtreeland)
     set_target_properties("${PROTO_FILE}-json-test" PROPERTIES AUTOMOC OFF AUTOUIC OFF)
