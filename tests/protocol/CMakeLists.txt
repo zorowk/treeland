@@ -123,7 +123,7 @@ function(add_json_protocol_test PROTO_FILE XML_PATH MOD_HEADER MOD_CLASS MOD_DIR
         COMMAND gen-test-client "${XML_PATH}" "${GEN_SRC}"
         DEPENDS gen-test-client "${XML_PATH}" VERBATIM)
     add_executable("${PROTO_FILE}-gen-client" "${GEN_SRC}" "${CL_C}")
-    target_include_directories("${PROTO_FILE}-gen-client" PRIVATE "${GEN_D}")
+    target_include_directories("${PROTO_FILE}-gen-client" PRIVATE "${GEN_D}" "${XDG_SHELL_INCLUDE_DIR}")
     target_link_libraries("${PROTO_FILE}-gen-client" PRIVATE PkgConfig::WAYLAND_CLIENT)
     set_target_properties("${PROTO_FILE}-gen-client" PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output")
@@ -156,7 +156,7 @@ function(add_wayland_protocol_test PROTO_FILE XML_PATH)
         COMMAND gen-test-client "${XML_PATH}" "${GEN_SRC}"
         DEPENDS gen-test-client "${XML_PATH}" VERBATIM)
     add_executable("${PROTO_FILE}-gen-client" "${GEN_SRC}" "${CL_C}")
-    target_include_directories("${PROTO_FILE}-gen-client" PRIVATE "${GEN_D}")
+    target_include_directories("${PROTO_FILE}-gen-client" PRIVATE "${GEN_D}" "${XDG_SHELL_INCLUDE_DIR}")
     target_link_libraries("${PROTO_FILE}-gen-client" PRIVATE PkgConfig::WAYLAND_CLIENT)
     set_target_properties("${PROTO_FILE}-gen-client" PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output")
@@ -172,6 +172,21 @@ function(add_wayland_protocol_test PROTO_FILE XML_PATH)
     add_test(NAME "${PROTO_FILE}-json-test" COMMAND "${PROTO_FILE}-json-test")
     set_tests_properties("${PROTO_FILE}-json-test" PROPERTIES LABELS "protocol-high;std-wayland" TIMEOUT 30)
 endfunction()
+
+# ---- Shared xdg-shell stubs (needed by NEED_SURFACE_FIXTURE) ----
+set(XDG_SHELL_XML "/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml")
+set(XDG_SHELL_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/xdg-shell")
+set(XDG_SHELL_CLIENT_H "${XDG_SHELL_GEN_DIR}/wayland-xdg-shell-client-protocol.h")
+set(XDG_SHELL_CLIENT_C "${XDG_SHELL_GEN_DIR}/wayland-xdg-shell-client-protocol.c")
+add_custom_command(
+    OUTPUT "${XDG_SHELL_CLIENT_H}" "${XDG_SHELL_CLIENT_C}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${XDG_SHELL_GEN_DIR}"
+    COMMAND ${WAYLAND_SCANNER} client-header "${XDG_SHELL_XML}" "${XDG_SHELL_CLIENT_H}"
+    COMMAND ${WAYLAND_SCANNER} private-code "${XDG_SHELL_XML}" "${XDG_SHELL_CLIENT_C}"
+    DEPENDS "${XDG_SHELL_XML}" VERBATIM
+)
+set(XDG_SHELL_INCLUDE_DIR "${XDG_SHELL_GEN_DIR}")
+
 
 # ---- Scan all JSON case files and auto-generate tests ----
 file(GLOB JSON_CASES "${CMAKE_CURRENT_SOURCE_DIR}/cases/*.json")
