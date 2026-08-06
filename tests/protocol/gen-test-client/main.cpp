@@ -88,6 +88,7 @@ static std::string cType(const Argument &arg) {
 static std::string pf(const Argument &arg) {
     if (arg.type == "uint" || arg.type == "enum") return "%u";
     if (arg.type == "int") return "%d";
+    if (arg.type == "fixed") return "%d";
     if (arg.type == "string") return "%s";
     return "?";
 }
@@ -140,6 +141,8 @@ void generateClient(const Interface &iface, const std::string &basename, FILE *o
                 fprintf(out, "        uint32_t a_%s=(uint32_t)strtoul(argv[%d],NULL,10);\n", a.name.c_str(), i);
             else if (a.type == "int")
                 fprintf(out, "        int32_t a_%s=(int32_t)strtol(argv[%d],NULL,10);\n", a.name.c_str(), i);
+            else if (a.type == "fixed")
+                fprintf(out, "        wl_fixed_t a_%s=wl_fixed_from_double(strtod(argv[%d],NULL));\n", a.name.c_str(), i);
             else if (a.type == "string")
                 fprintf(out, "        const char *a_%s = (argv[%d][0]=='-'&&argv[%d][1]=='\\0') ? NULL : argv[%d];\n  // -- as arg means null\n",
                        a.name.c_str(), i, i, i);

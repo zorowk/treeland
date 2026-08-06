@@ -1,9 +1,11 @@
-// Minimal E2E test for gen-test-client generated program
+// Generic E2E test for gen-test-client generated programs.
+// Compile with -DTL_CLIENT_PATH=... -DTL_SERVER_PATH=... -DTL_REQUEST="echo 1.5" -DTL_EXPECT="value=384"
 #include <QFile>
 #include <QProcess>
-#include <cstdlib>
 #include <QThread>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 int main() {
     QString sockPath = "/tmp/gen-test-e2e-sock";
@@ -11,12 +13,11 @@ int main() {
     QFile::remove(sockPath + ".lock");
 
     QProcess server;
-    server.start(QStringLiteral(TL_ECHO_SERVER_PATH), {sockPath});
+    server.start(QStringLiteral(TL_SERVER_PATH), {sockPath});
     if (!server.waitForStarted(3000)) {
         fprintf(stderr, "FAIL: server start: %s\n", qPrintable(server.errorString()));
         return 1;
     }
-    // Wait for socket
     for (int i = 0; i < 20 && !QFile::exists(sockPath); i++)
         QThread::msleep(100);
     if (!QFile::exists(sockPath)) {
@@ -24,24 +25,31 @@ int main() {
         server.terminate(); return 1;
     }
 
+    // Build client args
+    QStringList args = {"--socket", sockPath};
+    // Parse TL_REQUEST: "echo 1.5" → ["--request", "echo", "1.5"]
+    QString reqStr = QStringLiteral(TL_REQUEST);
+    args.append("--request");
+    args.append(reqStr.split(' '));
+
+    args.append("--roundtrip");
+    args.append("--checkpoint");
+
     QProcess client;
-    client.start(QStringLiteral(TL_GENERATED_CLIENT_PATH), {
-        "--socket", sockPath,
-        "--request", "echo", "42", "-7", "hello",
-        "--roundtrip", "--checkpoint"
-    });
+    client.start(QStringLiteral(TL_CLIENT_PATH), args);
     if (!client.waitForFinished(5000)) {
         fprintf(stderr, "FAIL: client timeout: %s\n", qPrintable(client.readAllStandardError()));
         server.terminate(); return 1;
     }
     if (client.exitCode() != 0) {
-        fprintf(stderr, "FAIL: client exit %d\n", client.exitCode());
+        fprintf(stderr, "FAIL: client exit %d: %s\n", client.exitCode(),
+                qPrintable(client.readAllStandardError()));
         server.terminate(); return 1;
     }
 
     QString out = client.readAllStandardOutput();
-    if (!out.contains("EVENT reply") || !out.contains("id=42") || !out.contains("CHECKPOINT")) {
-        fprintf(stderr, "FAIL: missing expected output\nGot: %s\n", qPrintable(out));
+    if (!out.contains("EVENT ") || !out.contains(QStringLiteral(TL_EXPECT)) || !out.contains("CHECKPOINT")) {
+        fprintf(stderr, "FAIL: missing expected '%s'\nGot: %s\n", TL_EXPECT, qPrintable(out));
         server.terminate(); return 1;
     }
 

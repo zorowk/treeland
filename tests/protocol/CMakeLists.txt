@@ -1005,50 +1005,59 @@ set_tests_properties(protocol-window-management-adapter-contract PROPERTIES
     TIMEOUT 30
 )
 add_subdirectory(gen-test-client)
-set(migrated_client_src ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/tl-test-multi-arg-gen.c)
-set(migrated_client_bin ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/test-multi-arg-gen)
 
-add_custom_command(
-    OUTPUT ${migrated_client_src}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output
-    COMMAND gen-test-client ${multi_arg_test_xml} ${migrated_client_src}
-    DEPENDS gen-test-client ${multi_arg_test_xml}
-    VERBATIM
+# === gen-test-client: generated standalone clients ===
+
+# Helper: define a gen-client E2E test
+# Args: TEST_NAME XML_VAR GEN_DIR CLIENT_DEPS SERVER_SRC SERVER_DEPS REQUEST EXPECT
+function(add_gen_client_test TEST_NAME XML_VAR GEN_DIR CLIENT_LIBS SERVER_SRC SERVER_LIBS REQUEST EXPECT)
+    set(GEN_SRC ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${TEST_NAME}-gen.c)
+    set(GEN_BIN ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${TEST_NAME}-gen-client)
+
+    add_custom_command(
+        OUTPUT ${GEN_SRC}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output
+        COMMAND gen-test-client ${${XML_VAR}} ${GEN_SRC}
+        DEPENDS gen-test-client ${${XML_VAR}}
+        VERBATIM
+    )
+    add_executable(${TEST_NAME}-gen-client ${GEN_SRC} ${${CLIENT_LIBS}})
+    target_include_directories(${TEST_NAME}-gen-client PRIVATE ${${GEN_DIR}})
+    target_link_libraries(${TEST_NAME}-gen-client PRIVATE PkgConfig::WAYLAND_CLIENT)
+    set_target_properties(${TEST_NAME}-gen-client PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output
+    )
+
+    add_executable(${TEST_NAME}-echo-server ${SERVER_SRC} ${${SERVER_LIBS}})
+    target_include_directories(${TEST_NAME}-echo-server PRIVATE ${${GEN_DIR}})
+    target_link_libraries(${TEST_NAME}-echo-server PRIVATE PkgConfig::WAYLAND_SERVER)
+
+    add_executable(${TEST_NAME}-e2e gencliente2etest.cpp)
+    target_compile_definitions(${TEST_NAME}-e2e PRIVATE
+        TL_CLIENT_PATH="${GEN_BIN}"
+        TL_SERVER_PATH="$<TARGET_FILE:${TEST_NAME}-echo-server>"
+        TL_REQUEST="${REQUEST}"
+        TL_EXPECT="${EXPECT}"
+    )
+    target_link_libraries(${TEST_NAME}-e2e PRIVATE Qt6::Core)
+    add_dependencies(${TEST_NAME}-e2e ${TEST_NAME}-gen-client ${TEST_NAME}-echo-server)
+
+    add_test(NAME ${TEST_NAME}-e2e COMMAND ${TEST_NAME}-e2e)
+    set_tests_properties(${TEST_NAME}-e2e PROPERTIES
+        LABELS "protocol-wire;gen-client" TIMEOUT 15
+    )
+endfunction()
+
+# Multi-arg: echo 42 -7 hello → expect id=42
+add_gen_client_test(test-multi-arg
+    multi_arg_test_xml multi_arg_generated_directory multi_arg_client_code
+    echoserver.c multi_arg_client_code
+    "echo 42 -7 hello" "id=42"
 )
 
-add_executable(test-multi-arg-gen-client
-    ${migrated_client_src}
-    ${multi_arg_client_code}
-)
-target_include_directories(test-multi-arg-gen-client PRIVATE ${multi_arg_generated_directory})
-target_link_libraries(test-multi-arg-gen-client PRIVATE PkgConfig::WAYLAND_CLIENT)
-set_target_properties(test-multi-arg-gen-client PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output)
-
-
-# Echo server binary for E2E tests
-add_executable(gen-test-echo-server
-    echoserver.c
-    ${multi_arg_client_code}
-)
-target_include_directories(gen-test-echo-server PRIVATE ${multi_arg_generated_directory})
-target_link_libraries(gen-test-echo-server PRIVATE PkgConfig::WAYLAND_SERVER)
-
-# E2E test: spawn echo server + generated client
-add_executable(protocol-gen-client-e2e
-    genclientmigrationtest.cpp
-)
-target_include_directories(protocol-gen-client-e2e PRIVATE ${multi_arg_generated_directory})
-target_compile_definitions(protocol-gen-client-e2e PRIVATE
-    TL_GENERATED_CLIENT_PATH="${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/test-multi-arg-gen-client"
-    TL_ECHO_SERVER_PATH="${CMAKE_CURRENT_BINARY_DIR}/gen-test-echo-server"
-)
-target_link_libraries(protocol-gen-client-e2e
-    PRIVATE Qt6::Test PkgConfig::WAYLAND_SERVER ${multi_arg_client_code}
-)
-
-add_dependencies(protocol-gen-client-e2e test-multi-arg-gen-client gen-test-echo-server)
-add_test(NAME protocol-gen-client-e2e COMMAND protocol-gen-client-e2e)
-set_tests_properties(protocol-gen-client-e2e PROPERTIES
-    LABELS "protocol-wire;gen-client"
-    TIMEOUT 15
+# Fixed: echo 1.5 → expect value=384 (raw wl_fixed_t)
+add_gen_client_test(test-fixed
+    fixed_test_xml fixed_generated_directory fixed_client_code
+    fixedechoserver.c fixed_client_code
+    "echo 1.5" "value=384"
 )
