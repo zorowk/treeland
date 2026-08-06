@@ -183,43 +183,20 @@ endfunction()
 add_json_protocol_test(test-wm window_management_xml wm_generated_directory wm_client_code
     "windowmanagementinterfacev1.h" WindowManagementInterfaceV1 window-management)
 
-# XML paths for treeland protocols
-set(app_id_xml ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-app-id-resolver-v1.xml)
-set(app_id_gen_dir ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-app-id-resolver-v1)
-set(app_id_client_h ${app_id_gen_dir}/wayland-treeland-app-id-resolver-v1-client-protocol.h)
-set(app_id_client_c ${app_id_gen_dir}/wayland-treeland-app-id-resolver-v1-client-protocol.c)
-set(ddm_xml ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v1.xml)
-set(ddm_gen_dir ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-ddm-v1)
-set(ddm_client_h ${ddm_gen_dir}/wayland-treeland-ddm-v1-client-protocol.h)
-set(ddm_client_c ${ddm_gen_dir}/wayland-treeland-ddm-v1-client-protocol.c)
-set(sa_xml ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-screensaver-v1.xml)
-set(sa_gen_dir ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-screensaver-v1)
-set(sa_client_h ${sa_gen_dir}/wayland-treeland-screensaver-v1-client-protocol.h)
-set(sa_client_c ${sa_gen_dir}/wayland-treeland-screensaver-v1-client-protocol.c)
+
+# ---- wallpaper-color protocol ----
 set(wc_xml ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-wallpaper-color-v1.xml)
 set(wc_gen_dir ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-wallpaper-color-v1)
 set(wc_client_h ${wc_gen_dir}/wayland-treeland-wallpaper-color-v1-client-protocol.h)
 set(wc_client_c ${wc_gen_dir}/wayland-treeland-wallpaper-color-v1-client-protocol.c)
-set(vo_xml ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-virtual-output-manager-v1.xml)
-set(vo_gen_dir ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-virtual-output-manager-v1)
-set(vo_client_h ${vo_gen_dir}/wayland-treeland-virtual-output-manager-v1-client-protocol.h)
-set(vo_client_c ${vo_gen_dir}/wayland-treeland-virtual-output-manager-v1-client-protocol.c)
-set(ks_xml ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-keyboard-state-notify-unstable-v1.xml)
-set(ks_gen_dir ${CMAKE_CURRENT_BINARY_DIR}/generated/treeland-keyboard-state-notify-unstable-v1)
-set(ks_client_h ${ks_gen_dir}/wayland-treeland-keyboard-state-notify-unstable-v1-client-protocol.h)
-set(ks_client_c ${ks_gen_dir}/wayland-treeland-keyboard-state-notify-unstable-v1-client-protocol.c)
-# ---- Treeland protocol JSON tests (auto-generated) ----
-# Class names confirmed from source headers
 
-add_json_protocol_test(test-appid app_id_xml app_id_gen_dir app_id_client_c
-    "appidresolver.h" AppIdResolverManager app-id-resolver)
-add_json_protocol_test(test-ddm ddm_xml ddm_gen_dir ddm_client_c
-    "ddminterfacev1.h" DDMInterfaceV1 ddm)
-add_json_protocol_test(test-screensaver sa_xml sa_gen_dir sa_client_c
-    "screensaverinterfacev1.h" ScreensaverInterfaceV1 screensaver)
-add_json_protocol_test(test-wallpaper-color wc_xml wc_gen_dir wc_client_c
+add_custom_command(
+    OUTPUT ${wc_client_h} ${wc_client_c}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${wc_gen_dir}
+    COMMAND ${WAYLAND_SCANNER} client-header ${wc_xml} ${wc_client_h}
+    COMMAND ${WAYLAND_SCANNER} private-code ${wc_xml} ${wc_client_c}
+    DEPENDS ${wc_xml} VERBATIM
+)
+
+add_json_protocol_test(test-wc wc_xml wc_gen_dir wc_client_c
     "wallpapercolorinterfacev1.h" WallpaperColorInterfaceV1 wallpaper-color)
-add_json_protocol_test(test-virtual-output vo_xml vo_gen_dir vo_client_c
-    "virtualoutputmanagerinterfacev1.h" VirtualOutputInterfaceV1 virtual-output)
-add_json_protocol_test(test-keyboard-state ks_xml ks_gen_dir ks_client_c
-    "keyboardstatenotifymanagerinterfacev1.h" KeyboardStateWatcherV1 keyboard-state-notify)

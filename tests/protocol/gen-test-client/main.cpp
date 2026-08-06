@@ -126,17 +126,11 @@ int main(int argc, char **argv) {
     // Find template relative to executable or source
     std::string tmplPath = std::string(argv[0]);
     auto slash = tmplPath.rfind('/');
-    if (slash != std::string::npos) tmplPath = tmplPath.substr(0, slash+1);
-    tmplPath += "../template.c.in"; // from build dir, go up to source
+    if (slash != std::string::npos) tmplPath = tmplPath.substr(0, slash+1) + "template.c.in";
 
     std::ifstream tf(tmplPath);
     if (!tf.is_open()) {
-        // Try current directory
         tf.open("template.c.in");
-    }
-    if (!tf.is_open()) {
-        // Try tests/protocol/gen-test-client/
-        tf.open("tests/protocol/gen-test-client/template.c.in");
     }
     if (!tf.is_open()) {
         fprintf(stderr, "Cannot find template.c.in\n");
