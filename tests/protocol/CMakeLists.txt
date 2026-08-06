@@ -1013,7 +1013,6 @@ add_subdirectory(gen-test-client)
 function(add_gen_client_test TEST_NAME XML_VAR GEN_DIR CLIENT_LIBS SERVER_SRC SERVER_LIBS REQUEST EXPECT)
     set(GEN_SRC ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${TEST_NAME}-gen.c)
     set(GEN_BIN ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${TEST_NAME}-gen-client)
-
     add_custom_command(
         OUTPUT ${GEN_SRC}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output
@@ -1025,39 +1024,23 @@ function(add_gen_client_test TEST_NAME XML_VAR GEN_DIR CLIENT_LIBS SERVER_SRC SE
     target_include_directories(${TEST_NAME}-gen-client PRIVATE ${${GEN_DIR}})
     target_link_libraries(${TEST_NAME}-gen-client PRIVATE PkgConfig::WAYLAND_CLIENT)
     set_target_properties(${TEST_NAME}-gen-client PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output
-    )
-
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output)
     add_executable(${TEST_NAME}-echo-server ${SERVER_SRC} ${${SERVER_LIBS}})
     target_include_directories(${TEST_NAME}-echo-server PRIVATE ${${GEN_DIR}})
     target_link_libraries(${TEST_NAME}-echo-server PRIVATE PkgConfig::WAYLAND_SERVER)
-
     add_executable(${TEST_NAME}-e2e gencliente2etest.cpp)
     target_compile_definitions(${TEST_NAME}-e2e PRIVATE
         TL_CLIENT_PATH="${GEN_BIN}"
         TL_SERVER_PATH="$<TARGET_FILE:${TEST_NAME}-echo-server>"
         TL_REQUEST="${REQUEST}"
-        TL_EXPECT="${EXPECT}"
-    )
+        TL_EXPECT="${EXPECT}")
     target_link_libraries(${TEST_NAME}-e2e PRIVATE Qt6::Core)
     add_dependencies(${TEST_NAME}-e2e ${TEST_NAME}-gen-client ${TEST_NAME}-echo-server)
-
     add_test(NAME ${TEST_NAME}-e2e COMMAND ${TEST_NAME}-e2e)
-    set_tests_properties(${TEST_NAME}-e2e PROPERTIES
-        LABELS "protocol-wire;gen-client" TIMEOUT 15
-    )
+    set_tests_properties(${TEST_NAME}-e2e PROPERTIES LABELS "protocol-wire;gen-client" TIMEOUT 15)
 endfunction()
 
-# Multi-arg: echo 42 -7 hello → expect id=42
-add_gen_client_test(test-multi-arg
-    multi_arg_test_xml multi_arg_generated_directory multi_arg_client_code
-    echoserver.c multi_arg_client_code
-    "echo 42 -7 hello" "id=42"
-)
-
-# Fixed: echo 1.5 → expect value=384 (raw wl_fixed_t)
-add_gen_client_test(test-fixed
-    fixed_test_xml fixed_generated_directory fixed_client_code
-    fixedechoserver.c fixed_client_code
-    "echo 1.5" "value=384"
-)
+add_gen_client_test(test-multi-arg multi_arg_test_xml multi_arg_generated_directory multi_arg_client_code
+    echoserver.c multi_arg_client_code "echo 42 -7 hello" "id=42")
+add_gen_client_test(test-fixed fixed_test_xml fixed_generated_directory fixed_client_code
+    fixedechoserver.c fixed_client_code "echo 1.5" "value=384")
