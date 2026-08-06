@@ -666,6 +666,7 @@ void Scanner::printTestClientHeader(const std::vector<WaylandInterface> &interfa
     printf("    void (*clear_events)(void *);\n");
     printf("    int (*dispatch)(void *, const char *, const char **, int);\n");
     printf("    int (*destroy)(void *);\n");
+    printf("    char *(*collect_json)(void *);\n");
     printf("    const struct wl_registry_listener *(*listener)(void);\n");
     printf("};\n");
     printf("extern const struct %s_registry_type %s_registry;\n", adapter.constData(), adapter.constData());
@@ -693,7 +694,7 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
     const QByteArray basename = QByteArray(m_protocolName).replace('_', '-');
     printf("#include \"tl-test-%s.h\"\n", basename.constData());
     printf("#include \"wayland-%s-client-protocol.h\"\n\n", basename.constData());
-    printf("#include <stdlib.h>\n#include <string.h>\n#include <unistd.h>\n#include <fcntl.h>\n#include <wayland-client.h>\n\n");
+    printf("#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <unistd.h>\n#include <fcntl.h>\n#include <wayland-client.h>\n\n");
 
     const auto children = findChildInterfaces(interfaces, *target);
 
@@ -1030,6 +1031,61 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
     }
     printf("    return -1;\n}\n");
 
+    // Generate event collection as JSON (handles both per-event and type-bucket styles)
+    printf("\nchar *%s_collect_json(void *adapter_ptr)\n{\n", adapter.constData());
+    printf("    struct %s_adapter *a = (struct %s_adapter *)adapter_ptr;\n",
+           adapter.constData(), adapter.constData());
+    printf("    char *buf = NULL;\n    size_t len = 0;\n");
+    printf("    FILE *f = open_memstream(&buf, &len);\n");
+    printf("    fprintf(f, \"[\");\n    int first = 1;\n");
+
+    if (needsPerEventStructs(*target)) {
+        // Per-event struct style
+        for (const WaylandEvent &event : target->events) {
+            printf("    for (size_t i = 0; i < a->%s_event_count; ++i) {\n",
+                   event.name.constData());
+            printf("        if (!first) fprintf(f, \",\");\n        first = 0;\n");
+            printf("        fprintf(f, \"{\\\"event\\\":\\\"%s\\\",\\\"args\\\":[\"",
+                   event.name.constData());
+            for (size_t j = 0; j < event.arguments.size(); ++j) {
+                if (j > 0) printf(" \",\"");
+                const WaylandArgument &arg = event.arguments[j];
+                if (arg.type == "uint" || arg.type == "enum")
+                    printf("\"{\\\"type\\\":\\\"%s\\\",\\\"value\\\":%%u}\"", arg.type.constData());
+                else if (arg.type == "int")
+                    printf("\"{\\\"type\\\":\\\"int\\\",\\\"value\\\":%%d}\"");
+                else if (arg.type == "string")
+                    printf("\"{\\\"type\\\":\\\"string\\\",\\\"value\\\":\\\"%%s\\\"}\"");
+                else
+                    printf("\"{\\\"type\\\":\\\"%s\\\"}\"", arg.type.constData());
+            }
+            printf(" \"]\"");
+            for (const WaylandArgument &arg : event.arguments) {
+                if (arg.type == "string")
+                    printf(", a->%s_events[i].%s ? a->%s_events[i].%s : \"null\"",
+                           event.name.constData(), arg.name.constData(),
+                           event.name.constData(), arg.name.constData());
+                else
+                    printf(", a->%s_events[i].%s", event.name.constData(), arg.name.constData());
+            }
+            printf(");\n    }\n");
+        }
+    } else {
+        // Old type-bucket style
+        for (const WaylandEvent &event : target->events) {
+            if (event.arguments.size() == 1 && event.arguments.front().type == "uint") {
+                printf("    for (size_t i = 0; i < a->event_count; ++i) {\n");
+                printf("        if (!first) fprintf(f, \",\");\n        first = 0;\n");
+                printf("        fprintf(f, \"{\\\"event\\\":\\\"%s\\\",\\\"args\\\":["
+                       "{\\\"type\\\":\\\"uint\\\",\\\"value\\\":%%u}]}\","
+                       " a->events[i]);\n",
+                       event.name.constData());
+                printf("    }\n");
+            }
+        }
+    }
+    printf("    fprintf(f, \"]\");\n    fclose(f);\n    return buf;\n}\n");
+
     // Generate uniform registry struct for runner dispatch
     printf("\nconst struct %s_registry_type %s_registry = {\n",
            adapter.constData(), adapter.constData());
@@ -1041,6 +1097,7 @@ void Scanner::printTestClientCode(const std::vector<WaylandInterface> &interface
     printf("    .clear_events = (void (*)(void *))%s_clear_events,\n", adapter.constData());
     printf("    .dispatch = (int (*)(void *, const char *, const char **, int))%s_dispatch,\n", adapter.constData());
     printf("    .destroy = (int (*)(void *))%s_destroy,\n", adapter.constData());
+    printf("    .collect_json = %s_collect_json,\n", adapter.constData());
     printf("    .listener = %s_registry_listener,\n", adapter.constData());
     printf("};\n");
 }
