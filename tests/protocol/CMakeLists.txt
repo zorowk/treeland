@@ -1,4 +1,4 @@
-find_package(Qt6 REQUIRED COMPONENTS Core)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets)
 find_package(TreelandProtocols REQUIRED)
 pkg_search_module(WAYLAND_CLIENT REQUIRED IMPORTED_TARGET wayland-client)
 pkg_search_module(WAYLAND_SERVER REQUIRED IMPORTED_TARGET wayland-server)
@@ -135,7 +135,7 @@ function(add_json_protocol_test PROTO_FILE XML_PATH MOD_HEADER MOD_CLASS MOD_DIR
         TL_MODULE_HEADER_STR="${MOD_HEADER}"
         TL_MODULE_CLASS=${MOD_CLASS})
     target_include_directories("${PROTO_FILE}-json-test" PRIVATE "${CMAKE_SOURCE_DIR}/src/modules/${MOD_DIR}")
-    target_link_libraries("${PROTO_FILE}-json-test" PRIVATE Qt6::Core libtreeland)
+    target_link_libraries("${PROTO_FILE}-json-test" PRIVATE Qt6::Widgets libtreeland)
     set_target_properties("${PROTO_FILE}-json-test" PROPERTIES AUTOMOC OFF AUTOUIC OFF)
     add_dependencies("${PROTO_FILE}-json-test" "${PROTO_FILE}-gen-client")
     add_test(NAME "${PROTO_FILE}-json-test" COMMAND "${PROTO_FILE}-json-test")
@@ -169,7 +169,7 @@ function(add_wayland_protocol_test PROTO_FILE XML_PATH)
         TL_CLIENT_PATH="${GEN_BIN}"
         TL_CASE="${CMAKE_CURRENT_SOURCE_DIR}/cases/${PROTO_FILE}.json"
         NO_MODULE_ATTACH)
-    target_link_libraries("${PROTO_FILE}-json-test" PRIVATE Qt6::Core libtreeland)
+    target_link_libraries("${PROTO_FILE}-json-test" PRIVATE Qt6::Widgets libtreeland)
     set_target_properties("${PROTO_FILE}-json-test" PROPERTIES AUTOMOC OFF AUTOUIC OFF)
     add_dependencies("${PROTO_FILE}-json-test" "${PROTO_FILE}-gen-client")
     add_test(NAME "${PROTO_FILE}-json-test" COMMAND "${PROTO_FILE}-json-test")
