@@ -28,7 +28,21 @@
         }
       ],
       "expected": {
-        "events": []
+        "events": [
+          {
+            "event": "treeland_virtual_output_v1.error",
+            "args": [
+              {
+                "type": "uint",
+                "value": 1
+              },
+              {
+                "type": "string",
+                "value": "The number of screens applying for copy mode is less than 2!"
+              }
+            ]
+          }
+        ]
       }
     }
   ]

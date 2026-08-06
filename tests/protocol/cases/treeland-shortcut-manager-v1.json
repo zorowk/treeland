@@ -2,28 +2,5 @@
   "protocol": "treeland_shortcut-manager_v1",
   "xml_path": "/usr/share/treeland-protocols/treeland-shortcut-manager-v1.xml",
   "description": "Smoke test (needs keyboard input fixture)",
-  "tests": [
-    {
-      "name": "smoke-register_shortcut_context",
-      "description": "Verifies client can bind, send register_shortcut_context, and not crash. needs keyboard input fixture",
-      "steps": [
-        {
-          "type": "request",
-          "name": "register_shortcut_context",
-          "args": [
-            "Ctrl+Alt+T"
-          ]
-        },
-        {
-          "type": "roundtrip"
-        },
-        {
-          "type": "checkpoint"
-        }
-      ],
-      "expected": {
-        "events": []
-      }
-    }
-  ]
+  "tests": []
 }

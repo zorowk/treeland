@@ -16,9 +16,8 @@
           "type": "request",
           "name": "inhibit",
           "args": [
-            "test",
-            "-",
-            "-"
+            "treeland-test",
+            "testing"
           ]
         },
         {

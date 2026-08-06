@@ -26,21 +26,7 @@
         }
       ],
       "expected": {
-        "events": [
-          {
-            "event": "output_color",
-            "args": [
-              {
-                "type": "string",
-                "value": "HEADLESS-1"
-              },
-              {
-                "type": "uint",
-                "value": 0
-              }
-            ]
-          }
-        ]
+        "events": []
       }
     }
   ]

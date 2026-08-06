@@ -9,7 +9,7 @@
       "steps": [
         {
           "type": "request",
-          "name": "start",
+          "name": "get_context",
           "args": []
         },
         {},

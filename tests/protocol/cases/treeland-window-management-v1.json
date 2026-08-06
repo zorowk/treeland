@@ -31,6 +31,15 @@
             "args": [
               {
                 "type": "uint",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "event": "show_desktop",
+            "args": [
+              {
+                "type": "uint",
                 "value": 1
               }
             ]
@@ -57,6 +66,15 @@
       ],
       "expected": {
         "events": [
+          {
+            "event": "show_desktop",
+            "args": [
+              {
+                "type": "uint",
+                "value": 1
+              }
+            ]
+          },
           {
             "event": "show_desktop",
             "args": [

@@ -10,7 +10,9 @@
         {
           "type": "request",
           "name": "get_treeland_wallpaper_surface",
-          "args": []
+          "args": [
+            "test-source"
+          ]
         },
         {},
         {

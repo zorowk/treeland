@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 #include <sstream>
 #include <fstream>
 
@@ -105,9 +106,25 @@ int main(int argc, char **argv) {
     auto ifaces = parseProtocol(argv[1]);
     if (ifaces.empty()) { fprintf(stderr, "Parse failed\n"); return 1; }
 
-    // Use first interface as parent — it is always the global (manager).
-    // Child interfaces with events are created via new_id, not bound directly.
-    const Interface &parent = ifaces[0];
+    // Find the global (manager) interface: the one not created via new_id by any other.
+    std::set<std::string> childNames;
+    for (const Interface &iface : ifaces)
+        for (const Event &ev : iface.requests)
+            for (const Argument &a : ev.arguments)
+                if (a.type == "new_id" && !a.interfaceName.empty())
+                    childNames.insert(a.interfaceName);
+
+    const Interface *pParent = &ifaces[0];
+    // Among candidates, prefer one with non-destructor requests
+    for (const Interface &iface : ifaces) {
+        if (childNames.count(iface.name)) continue;
+        bool hasNonDestructor = false;
+        for (const Event &r : iface.requests)
+            if (r.name != "__destructor") { hasNonDestructor = true; break; }
+        if (hasNonDestructor) { pParent = &iface; break; }
+        if (!pParent || pParent->requests.size() <= 1) pParent = &iface; // fallback
+    }
+    const Interface &parent = *pParent;
 
     // Find children referenced by new_id
     std::map<std::string, const Interface *> children;

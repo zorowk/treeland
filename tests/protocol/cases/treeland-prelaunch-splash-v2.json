@@ -11,10 +11,9 @@
           "type": "request",
           "name": "create_splash",
           "args": [
-            "test",
-            "-",
-            "-",
-            "-"
+            "test-app",
+            "inst-1",
+            "flatpak"
           ]
         },
         {

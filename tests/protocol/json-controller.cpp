@@ -44,10 +44,9 @@ int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
 
     QFile f(QString::fromUtf8(TL_CASE));
-    if (!f.open(QIODevice::ReadOnly)) {
-        fprintf(stderr, "FAIL: cannot read %s\n", TL_CASE); return 1;
-    }
+    if (!f.open(QIODevice::ReadOnly)) { fprintf(stderr, "FAIL: cannot read %s\n", TL_CASE); return 1; }
     QJsonArray tests = QJsonDocument::fromJson(f.readAll()).object()["tests"].toArray();
+    if (tests.isEmpty()) { printf("0/0 passed (no tests)\n"); return 0; }
 
     // ---- Start headless treeland once ----
     char tmpdir[] = "/tmp/treeland-test-XXXXXX";

@@ -22,7 +22,17 @@
         }
       ],
       "expected": {
-        "events": []
+        "events": [
+          {
+            "event": "primary_output",
+            "args": [
+              {
+                "type": "string",
+                "value": "HEADLESS-2"
+              }
+            ]
+          }
+        ]
       }
     }
   ]
