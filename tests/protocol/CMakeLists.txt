@@ -153,38 +153,16 @@ add_custom_command(
         ${fixed_adapter_header}
         ${fixed_adapter_code}
         ${fixed_adapter_metadata}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${fixed_generated_directory}
-    COMMAND ${WAYLAND_SCANNER} client-header ${fixed_test_xml} ${fixed_client_header}
-    COMMAND ${WAYLAND_SCANNER} private-code ${fixed_test_xml} ${fixed_client_code}
-    COMMAND ${WAYLAND_SCANNER} server-header ${fixed_test_xml} ${fixed_server_header}
-    COMMAND qtwaylandscanner_treeland test-client-header ${fixed_test_xml}
-        > ${fixed_adapter_header}
-    COMMAND qtwaylandscanner_treeland test-client-code ${fixed_test_xml}
-        > ${fixed_adapter_code}
-    COMMAND qtwaylandscanner_treeland test-client-metadata ${fixed_test_xml}
-        > ${fixed_adapter_metadata}
-    DEPENDS ${fixed_test_xml} qtwaylandscanner_treeland
-    VERBATIM
-)
 
-add_executable(protocol-fixed-adapter-selftest
-    fixedadapterselftest.cpp
-    protocolfixedvalue.cpp
-    protocolfixedvalue.h
     ${fixed_client_header}
     ${fixed_client_code}
     ${fixed_server_header}
     ${fixed_adapter_header}
     ${fixed_adapter_code}
 )
-target_include_directories(protocol-fixed-adapter-selftest PRIVATE ${fixed_generated_directory})
-target_compile_definitions(protocol-fixed-adapter-selftest
     PRIVATE TL_FIXED_TEST_METADATA="${fixed_adapter_metadata}")
-target_link_libraries(protocol-fixed-adapter-selftest
     PRIVATE Qt6::Test PkgConfig::WAYLAND_CLIENT PkgConfig::WAYLAND_SERVER)
 
-add_test(NAME protocol-fixed-adapter-selftest COMMAND protocol-fixed-adapter-selftest)
-set_tests_properties(protocol-fixed-adapter-selftest PROPERTIES
     LABELS "protocol-wire;generated-adapter;mvp-d4a-accepted"
     TIMEOUT 10
 )
@@ -210,38 +188,16 @@ add_custom_command(
         ${array_adapter_header}
         ${array_adapter_code}
         ${array_adapter_metadata}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${array_generated_directory}
-    COMMAND ${WAYLAND_SCANNER} client-header ${array_test_xml} ${array_client_header}
-    COMMAND ${WAYLAND_SCANNER} private-code ${array_test_xml} ${array_client_code}
-    COMMAND ${WAYLAND_SCANNER} server-header ${array_test_xml} ${array_server_header}
-    COMMAND qtwaylandscanner_treeland test-client-header ${array_test_xml}
-        > ${array_adapter_header}
-    COMMAND qtwaylandscanner_treeland test-client-code ${array_test_xml}
-        > ${array_adapter_code}
-    COMMAND qtwaylandscanner_treeland test-client-metadata ${array_test_xml}
-        > ${array_adapter_metadata}
-    DEPENDS ${array_test_xml} qtwaylandscanner_treeland
-    VERBATIM
-)
 
-add_executable(protocol-array-adapter-selftest
-    arrayadapterselftest.cpp
-    protocolarrayvalue.cpp
-    protocolarrayvalue.h
     ${array_client_header}
     ${array_client_code}
     ${array_server_header}
     ${array_adapter_header}
     ${array_adapter_code}
 )
-target_include_directories(protocol-array-adapter-selftest PRIVATE ${array_generated_directory})
-target_compile_definitions(protocol-array-adapter-selftest
     PRIVATE TL_ARRAY_TEST_METADATA="${array_adapter_metadata}")
-target_link_libraries(protocol-array-adapter-selftest
     PRIVATE Qt6::Test PkgConfig::WAYLAND_CLIENT PkgConfig::WAYLAND_SERVER)
 
-add_test(NAME protocol-array-adapter-selftest COMMAND protocol-array-adapter-selftest)
-set_tests_properties(protocol-array-adapter-selftest PROPERTIES
     LABELS "protocol-wire;generated-adapter;mvp-d4b-accepted"
     TIMEOUT 10
 )
@@ -267,38 +223,16 @@ add_custom_command(
         ${fd_adapter_header}
         ${fd_adapter_code}
         ${fd_adapter_metadata}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${fd_generated_directory}
-    COMMAND ${WAYLAND_SCANNER} client-header ${fd_test_xml} ${fd_client_header}
-    COMMAND ${WAYLAND_SCANNER} private-code ${fd_test_xml} ${fd_client_code}
-    COMMAND ${WAYLAND_SCANNER} server-header ${fd_test_xml} ${fd_server_header}
-    COMMAND qtwaylandscanner_treeland test-client-header ${fd_test_xml}
-        > ${fd_adapter_header}
-    COMMAND qtwaylandscanner_treeland test-client-code ${fd_test_xml}
-        > ${fd_adapter_code}
-    COMMAND qtwaylandscanner_treeland test-client-metadata ${fd_test_xml}
-        > ${fd_adapter_metadata}
-    DEPENDS ${fd_test_xml} qtwaylandscanner_treeland
-    VERBATIM
-)
 
-add_executable(protocol-fd-adapter-selftest
-    fdadapterselftest.cpp
-    protocolfdvalue.cpp
-    protocolfdvalue.h
     ${fd_client_header}
     ${fd_client_code}
     ${fd_server_header}
     ${fd_adapter_header}
     ${fd_adapter_code}
 )
-target_include_directories(protocol-fd-adapter-selftest PRIVATE ${fd_generated_directory})
-target_compile_definitions(protocol-fd-adapter-selftest
     PRIVATE TL_FD_TEST_METADATA="${fd_adapter_metadata}")
-target_link_libraries(protocol-fd-adapter-selftest
     PRIVATE Qt6::Test PkgConfig::WAYLAND_CLIENT PkgConfig::WAYLAND_SERVER)
 
-add_test(NAME protocol-fd-adapter-selftest COMMAND protocol-fd-adapter-selftest)
-set_tests_properties(protocol-fd-adapter-selftest PROPERTIES
     LABELS "protocol-wire;generated-adapter;mvp-d4c"
     TIMEOUT 10
 )
@@ -324,36 +258,16 @@ add_custom_command(
         ${new_id_adapter_header}
         ${new_id_adapter_code}
         ${new_id_adapter_metadata}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${new_id_generated_directory}
-    COMMAND ${WAYLAND_SCANNER} client-header ${new_id_test_xml} ${new_id_client_header}
-    COMMAND ${WAYLAND_SCANNER} private-code ${new_id_test_xml} ${new_id_client_code}
-    COMMAND ${WAYLAND_SCANNER} server-header ${new_id_test_xml} ${new_id_server_header}
-    COMMAND qtwaylandscanner_treeland test-client-header ${new_id_test_xml}
-        > ${new_id_adapter_header}
-    COMMAND qtwaylandscanner_treeland test-client-code ${new_id_test_xml}
-        > ${new_id_adapter_code}
-    COMMAND qtwaylandscanner_treeland test-client-metadata ${new_id_test_xml}
-        > ${new_id_adapter_metadata}
-    DEPENDS ${new_id_test_xml} qtwaylandscanner_treeland
-    VERBATIM
-)
 
-add_executable(protocol-new-id-adapter-selftest
-    newidadapterselftest.cpp
     ${new_id_client_header}
     ${new_id_client_code}
     ${new_id_server_header}
     ${new_id_adapter_header}
     ${new_id_adapter_code}
 )
-target_include_directories(protocol-new-id-adapter-selftest PRIVATE ${new_id_generated_directory})
-target_compile_definitions(protocol-new-id-adapter-selftest
     PRIVATE TL_NEW_ID_TEST_METADATA="${new_id_adapter_metadata}")
-target_link_libraries(protocol-new-id-adapter-selftest
     PRIVATE Qt6::Test PkgConfig::WAYLAND_CLIENT PkgConfig::WAYLAND_SERVER)
 
-add_test(NAME protocol-new-id-adapter-selftest COMMAND protocol-new-id-adapter-selftest)
-set_tests_properties(protocol-new-id-adapter-selftest PROPERTIES
     LABELS "protocol-wire;generated-adapter;mvp-d4d"
     TIMEOUT 10
 )
@@ -379,36 +293,16 @@ add_custom_command(
         ${multi_arg_adapter_header}
         ${multi_arg_adapter_code}
         ${multi_arg_adapter_metadata}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${multi_arg_generated_directory}
-    COMMAND ${WAYLAND_SCANNER} client-header ${multi_arg_test_xml} ${multi_arg_client_header}
-    COMMAND ${WAYLAND_SCANNER} private-code ${multi_arg_test_xml} ${multi_arg_client_code}
-    COMMAND ${WAYLAND_SCANNER} server-header ${multi_arg_test_xml} ${multi_arg_server_header}
-    COMMAND qtwaylandscanner_treeland test-client-header ${multi_arg_test_xml}
-        > ${multi_arg_adapter_header}
-    COMMAND qtwaylandscanner_treeland test-client-code ${multi_arg_test_xml}
-        > ${multi_arg_adapter_code}
-    COMMAND qtwaylandscanner_treeland test-client-metadata ${multi_arg_test_xml}
-        > ${multi_arg_adapter_metadata}
-    DEPENDS ${multi_arg_test_xml} qtwaylandscanner_treeland
-    VERBATIM
-)
 
-add_executable(protocol-multi-arg-adapter-selftest
-    multiargadapterselftest.cpp
     ${multi_arg_client_header}
     ${multi_arg_client_code}
     ${multi_arg_server_header}
     ${multi_arg_adapter_header}
     ${multi_arg_adapter_code}
 )
-target_include_directories(protocol-multi-arg-adapter-selftest PRIVATE ${multi_arg_generated_directory})
-target_compile_definitions(protocol-multi-arg-adapter-selftest
     PRIVATE TL_MULTI_ARG_TEST_METADATA="${multi_arg_adapter_metadata}")
-target_link_libraries(protocol-multi-arg-adapter-selftest
     PRIVATE Qt6::Test PkgConfig::WAYLAND_CLIENT PkgConfig::WAYLAND_SERVER)
 
-add_test(NAME protocol-multi-arg-adapter-selftest COMMAND protocol-multi-arg-adapter-selftest)
-set_tests_properties(protocol-multi-arg-adapter-selftest PROPERTIES
     LABELS "protocol-wire;generated-adapter;mvp-d4e"
     TIMEOUT 10
 )
@@ -427,20 +321,14 @@ set_tests_properties(protocol-json-runner-multi-arg-echo PROPERTIES
     TIMEOUT 10
 )
 
-add_executable(protocol-global-version-selftest
-    globalversionselftest.cpp
     ${multi_arg_client_header}
     ${multi_arg_client_code}
     ${multi_arg_server_header}
     ${multi_arg_adapter_header}
     ${multi_arg_adapter_code}
 )
-target_include_directories(protocol-global-version-selftest PRIVATE ${multi_arg_generated_directory})
-target_link_libraries(protocol-global-version-selftest
     PRIVATE Qt6::Test PkgConfig::WAYLAND_CLIENT PkgConfig::WAYLAND_SERVER)
 
-add_test(NAME protocol-global-version-selftest COMMAND protocol-global-version-selftest)
-set_tests_properties(protocol-global-version-selftest PROPERTIES
     LABELS "protocol-wire;generated-adapter;mvp-d5"
     TIMEOUT 10
 )
@@ -465,34 +353,14 @@ add_custom_command(
         ${obj_newid_adapter_header}
         ${obj_newid_adapter_code}
         ${obj_newid_adapter_metadata}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${obj_newid_generated_directory}
-    COMMAND ${WAYLAND_SCANNER} client-header ${obj_newid_test_xml} ${obj_newid_client_header}
-    COMMAND ${WAYLAND_SCANNER} private-code ${obj_newid_test_xml} ${obj_newid_client_code}
-    COMMAND ${WAYLAND_SCANNER} server-header ${obj_newid_test_xml} ${obj_newid_server_header}
-    COMMAND qtwaylandscanner_treeland test-client-header ${obj_newid_test_xml}
-        > ${obj_newid_adapter_header}
-    COMMAND qtwaylandscanner_treeland test-client-code ${obj_newid_test_xml}
-        > ${obj_newid_adapter_code}
-    COMMAND qtwaylandscanner_treeland test-client-metadata ${obj_newid_test_xml}
-        > ${obj_newid_adapter_metadata}
-    DEPENDS ${obj_newid_test_xml} qtwaylandscanner_treeland
-    VERBATIM
-)
-add_executable(protocol-object-newid-adapter-selftest
-    objectnewidadapterselftest.cpp
     ${obj_newid_client_header}
     ${obj_newid_client_code}
     ${obj_newid_server_header}
     ${obj_newid_adapter_header}
     ${obj_newid_adapter_code}
 )
-target_include_directories(protocol-object-newid-adapter-selftest PRIVATE ${obj_newid_generated_directory})
-target_compile_definitions(protocol-object-newid-adapter-selftest
     PRIVATE TL_OBJECT_NEWID_TEST_METADATA="${obj_newid_adapter_metadata}")
-target_link_libraries(protocol-object-newid-adapter-selftest
     PRIVATE Qt6::Test PkgConfig::WAYLAND_CLIENT PkgConfig::WAYLAND_SERVER)
-add_test(NAME protocol-object-newid-adapter-selftest COMMAND protocol-object-newid-adapter-selftest)
-set_tests_properties(protocol-object-newid-adapter-selftest PROPERTIES
     LABELS "protocol-wire;generated-adapter;mvp-d4f"
     TIMEOUT 10
 )
