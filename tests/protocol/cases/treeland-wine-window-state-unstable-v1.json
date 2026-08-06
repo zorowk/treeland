@@ -20,5 +20,6 @@
         "events": []
       }
     }
-  ]
+  ],
+  "xml_path": "/usr/share/treeland-protocols/treeland-wine-window-state-unstable-v1.xml"
 }

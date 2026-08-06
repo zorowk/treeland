@@ -20,5 +20,6 @@
         "events": []
       }
     }
-  ]
+  ],
+  "xml_path": "/usr/share/treeland-protocols/treeland-personalization-manager-v1.xml"
 }

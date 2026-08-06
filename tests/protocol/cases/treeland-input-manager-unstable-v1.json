@@ -20,5 +20,6 @@
         "events": []
       }
     }
-  ]
+  ],
+  "xml_path": "/usr/share/treeland-protocols/treeland-input-manager-unstable-v1.xml"
 }

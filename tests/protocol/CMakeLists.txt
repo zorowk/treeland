@@ -100,131 +100,100 @@ add_gen_client_test(test-object-newid obj_newid_test_xml  obj_newid_generated_di
 
 
 # ============================================================
-# Auto-generated: iterate all treeland protocol XMLs
+# ============================================================
+# Auto-generated from cases/*.json
+# JSON format: {"xml_path":..., "module":{"class":..., "header":..., "dir":...}}
+# Standard wayland protocols omit "module" -> NO_MODULE_ATTACH
 # ============================================================
 
-# Module registry: protocol XML → (header, class, module_dir)
-# Only protocols listed here get json-controller tests.
-# Others still get gen-test-client generation.
-set(TREELAND_MODULE_REGISTRY
-    "treeland-window-management-v1|windowmanagementinterfacev1.h|WindowManagementInterfaceV1|window-management"
-    "treeland-wallpaper-color-v1|wallpapercolorinterfacev1.h|WallpaperColorInterfaceV1|wallpaper-color"
-    "treeland-ddm-v1|ddminterfacev1.h|DDMInterfaceV1|ddm"
-    "treeland-screensaver-v1|screensaverinterfacev1.h|ScreensaverInterfaceV1|screensaver"
-    "treeland-virtual-output-manager-v1|virtualoutputmanagerinterfacev1.h|VirtualOutputInterfaceV1|virtual-output"
-    "treeland-keyboard-state-notify-unstable-v1|keyboardstatenotifymanagerinterfacev1.h|KeyboardStateWatcherV1|keyboard-state-notify"
-)
-
-# Find all treeland protocol XMLs
-file(GLOB_RECURSE TREELAND_XMLS "${TREELAND_PROTOCOLS_DATA_DIR}/treeland-*.xml")
-
-foreach(XML_PATH ${TREELAND_XMLS})
-    # Extract protocol base name from filename
-    get_filename_component(PROTO_FILE "${XML_PATH}" NAME_WE)
-    # treeland-foo-bar-v1 → treeland_foo_bar_v1_xml
-    string(REPLACE "-" "_" PROTO_VAR "${PROTO_FILE}")
-
-    # Set variables for this protocol
-    set(${PROTO_VAR}_xml "${XML_PATH}")
-    set(${PROTO_VAR}_gen_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/${PROTO_FILE}")
-    set(${PROTO_VAR}_client_h "${${PROTO_VAR}_gen_dir}/wayland-${PROTO_FILE}-client-protocol.h")
-    set(${PROTO_VAR}_client_c "${${PROTO_VAR}_gen_dir}/wayland-${PROTO_FILE}-client-protocol.c")
-
-    # Generate wayland-scanner stubs
-    add_custom_command(
-        OUTPUT "${${PROTO_VAR}_client_h}" "${${PROTO_VAR}_client_c}"
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${${PROTO_VAR}_gen_dir}"
-        COMMAND ${WAYLAND_SCANNER} client-header "${XML_PATH}" "${${PROTO_VAR}_client_h}"
-        COMMAND ${WAYLAND_SCANNER} private-code "${XML_PATH}" "${${PROTO_VAR}_client_c}"
-        DEPENDS "${XML_PATH}"
-        VERBATIM
-    )
-
-    # Check if this protocol is in the module registry
-    set(FOUND_CLASS "")
-    foreach(ENTRY ${TREELAND_MODULE_REGISTRY})
-        list(GET ENTRY 0 ENTRY_PROTO)
-        if("${PROTO_FILE}" STREQUAL "${ENTRY_PROTO}")
-            list(GET ENTRY 1 ENTRY_HEADER)
-            list(GET ENTRY 2 ENTRY_CLASS)
-            list(GET ENTRY 3 ENTRY_DIR)
-            set(FOUND_CLASS "${ENTRY_CLASS}")
-            set(FOUND_HEADER "${ENTRY_HEADER}")
-            set(FOUND_DIR "${ENTRY_DIR}")
-            break()
-        endif()
-    endforeach()
-
-    # Generate gen-test-client client (always)
-    set(GEN_CLIENT_SRC "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${PROTO_FILE}-gen.c")
-    add_custom_command(
-        OUTPUT "${GEN_CLIENT_SRC}"
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output"
-        COMMAND gen-test-client "${XML_PATH}" "${GEN_CLIENT_SRC}"
-        DEPENDS gen-test-client "${XML_PATH}"
-        VERBATIM
-    )
-
-    # If in registry, also build json-controller test
-    if(FOUND_CLASS)
-        add_json_protocol_test("${PROTO_FILE}"
-            ${PROTO_VAR}_xml ${PROTO_VAR}_gen_dir ${PROTO_VAR}_client_c
-            "${FOUND_HEADER}" "${FOUND_CLASS}" "${FOUND_DIR}" "${PROTO_FILE}")
-    endif()
-endforeach()
-
-
-function(add_wayland_protocol_test NAME PROTO_FILE CLIENT_H CLIENT_C)
-    set(GEN_SRC "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${PROTO_FILE}-gen.c")
-    set(GEN_BIN "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${PROTO_FILE}-gen-client")
-    
-    # Already have wayland-scanner stubs from the loop
-    # Already have gen-test-client generation from the loop
-    
-    add_executable("${NAME}-gen-client" "${GEN_SRC}" "${CLIENT_C}")
-    target_include_directories("${NAME}-gen-client" PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated/${PROTO_FILE}")
-    target_link_libraries("${NAME}-gen-client" PRIVATE PkgConfig::WAYLAND_CLIENT)
-    set_target_properties("${NAME}-gen-client" PROPERTIES
+function(add_json_protocol_test PROTO_FILE XML_PATH MOD_HEADER MOD_CLASS MOD_DIR)
+    get_filename_component(NAME_BASE "${XML_PATH}" NAME_WE)
+    string(REPLACE "-" "_" PVAR "${NAME_BASE}")
+    set(GEN_D "${CMAKE_CURRENT_BINARY_DIR}/generated/${NAME_BASE}")
+    set(CL_H "${GEN_D}/wayland-${NAME_BASE}-client-protocol.h")
+    set(CL_C "${GEN_D}/wayland-${NAME_BASE}-client-protocol.c")
+    add_custom_command(OUTPUT "${CL_H}" "${CL_C}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${GEN_D}"
+        COMMAND ${WAYLAND_SCANNER} client-header "${XML_PATH}" "${CL_H}"
+        COMMAND ${WAYLAND_SCANNER} private-code "${XML_PATH}" "${CL_C}"
+        DEPENDS "${XML_PATH}" VERBATIM)
+    set(GEN_SRC "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${NAME_BASE}-gen.c")
+    set(GEN_BIN "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${NAME_BASE}-gen-client")
+    add_custom_command(OUTPUT "${GEN_SRC}"
+        COMMAND gen-test-client "${XML_PATH}" "${GEN_SRC}"
+        DEPENDS gen-test-client "${XML_PATH}" VERBATIM)
+    add_executable("${PROTO_FILE}-gen-client" "${GEN_SRC}" "${CL_C}")
+    target_include_directories("${PROTO_FILE}-gen-client" PRIVATE "${GEN_D}")
+    target_link_libraries("${PROTO_FILE}-gen-client" PRIVATE PkgConfig::WAYLAND_CLIENT)
+    set_target_properties("${PROTO_FILE}-gen-client" PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output")
-    
-    add_executable("${NAME}-json-test" json-controller.cpp)
-    target_compile_definitions("${NAME}-json-test" PRIVATE
+    add_executable("${PROTO_FILE}-json-test" json-controller.cpp)
+    target_compile_definitions("${PROTO_FILE}-json-test" PRIVATE
+        TL_CLIENT_PATH="${GEN_BIN}"
+        TL_CASE="${CMAKE_CURRENT_SOURCE_DIR}/cases/${PROTO_FILE}.json"
+        TL_MODULE_HEADER_STR="${MOD_HEADER}"
+        TL_MODULE_CLASS=${MOD_CLASS})
+    target_include_directories("${PROTO_FILE}-json-test" PRIVATE "${CMAKE_SOURCE_DIR}/src/modules/${MOD_DIR}")
+    target_link_libraries("${PROTO_FILE}-json-test" PRIVATE Qt6::Core libtreeland)
+    add_dependencies("${PROTO_FILE}-json-test" "${PROTO_FILE}-gen-client")
+    add_test(NAME "${PROTO_FILE}-json-test" COMMAND "${PROTO_FILE}-json-test")
+    set_tests_properties("${PROTO_FILE}-json-test" PROPERTIES LABELS "protocol-high;treeland" TIMEOUT 30)
+endfunction()
+
+function(add_wayland_protocol_test PROTO_FILE XML_PATH)
+    get_filename_component(NAME_BASE "${XML_PATH}" NAME_WE)
+    set(GEN_D "${CMAKE_CURRENT_BINARY_DIR}/generated/${NAME_BASE}")
+    set(CL_H "${GEN_D}/wayland-${NAME_BASE}-client-protocol.h")
+    set(CL_C "${GEN_D}/wayland-${NAME_BASE}-client-protocol.c")
+    add_custom_command(OUTPUT "${CL_H}" "${CL_C}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${GEN_D}"
+        COMMAND ${WAYLAND_SCANNER} client-header "${XML_PATH}" "${CL_H}"
+        COMMAND ${WAYLAND_SCANNER} private-code "${XML_PATH}" "${CL_C}"
+        DEPENDS "${XML_PATH}" VERBATIM)
+    set(GEN_SRC "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${NAME_BASE}-gen.c")
+    set(GEN_BIN "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${NAME_BASE}-gen-client")
+    add_custom_command(OUTPUT "${GEN_SRC}"
+        COMMAND gen-test-client "${XML_PATH}" "${GEN_SRC}"
+        DEPENDS gen-test-client "${XML_PATH}" VERBATIM)
+    add_executable("${PROTO_FILE}-gen-client" "${GEN_SRC}" "${CL_C}")
+    target_include_directories("${PROTO_FILE}-gen-client" PRIVATE "${GEN_D}")
+    target_link_libraries("${PROTO_FILE}-gen-client" PRIVATE PkgConfig::WAYLAND_CLIENT)
+    set_target_properties("${PROTO_FILE}-gen-client" PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output")
+    add_executable("${PROTO_FILE}-json-test" json-controller.cpp)
+    target_compile_definitions("${PROTO_FILE}-json-test" PRIVATE
         TL_CLIENT_PATH="${GEN_BIN}"
         TL_CASE="${CMAKE_CURRENT_SOURCE_DIR}/cases/${PROTO_FILE}.json"
         TL_MODULE_HEADER_STR=""
         TL_MODULE_CLASS=int
         NO_MODULE_ATTACH)
-    target_link_libraries("${NAME}-json-test" PRIVATE Qt6::Core libtreeland)
-    add_dependencies("${NAME}-json-test" "${NAME}-gen-client")
-    add_test(NAME "${NAME}-json-test" COMMAND "${NAME}-json-test")
-    set_tests_properties("${NAME}-json-test" PROPERTIES LABELS "protocol-high;std-wayland" TIMEOUT 30)
+    target_link_libraries("${PROTO_FILE}-json-test" PRIVATE Qt6::Core libtreeland)
+    add_dependencies("${PROTO_FILE}-json-test" "${PROTO_FILE}-gen-client")
+    add_test(NAME "${PROTO_FILE}-json-test" COMMAND "${PROTO_FILE}-json-test")
+    set_tests_properties("${PROTO_FILE}-json-test" PROPERTIES LABELS "protocol-high;std-wayland" TIMEOUT 30)
 endfunction()
 
-# Also scan standard wayland protocols
-file(GLOB_RECURSE WAYLAND_XMLS "/usr/share/wayland-protocols/*.xml")
-foreach(XML_PATH ${WAYLAND_XMLS})
-    get_filename_component(PROTO_FILE "${XML_PATH}" NAME_WE)
-    string(REPLACE "-" "_" PROTO_VAR "${PROTO_FILE}")
-    set(${PROTO_VAR}_client_h "${CMAKE_CURRENT_BINARY_DIR}/generated/${PROTO_FILE}/wayland-${PROTO_FILE}-client-protocol.h")
-    set(${PROTO_VAR}_client_c "${CMAKE_CURRENT_BINARY_DIR}/generated/${PROTO_FILE}/wayland-${PROTO_FILE}-client-protocol.c")
-    add_custom_command(
-        OUTPUT "${${PROTO_VAR}_client_h}" "${${PROTO_VAR}_client_c}"
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/generated/${PROTO_FILE}"
-        COMMAND ${WAYLAND_SCANNER} client-header "${XML_PATH}" "${${PROTO_VAR}_client_h}"
-        COMMAND ${WAYLAND_SCANNER} private-code "${XML_PATH}" "${${PROTO_VAR}_client_c}"
-        DEPENDS "${XML_PATH}" VERBATIM
-    )
-    
-    # Generate gen-test-client for standard protocols too
-    set(GEN_CLIENT_SRC "${CMAKE_CURRENT_BINARY_DIR}/gen-test-client-output/${PROTO_FILE}-gen.c")
-    add_custom_command(
-        OUTPUT "${GEN_CLIENT_SRC}"
-        COMMAND gen-test-client "${XML_PATH}" "${GEN_CLIENT_SRC}"
-        DEPENDS gen-test-client "${XML_PATH}" VERBATIM
-    )
-    
-    # Add test for protocols we have JSON cases for
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cases/${PROTO_FILE}.json")
-        add_wayland_protocol_test("std-${PROTO_FILE}" "${PROTO_FILE}" "${${PROTO_VAR}_client_h}" "${${PROTO_VAR}_client_c}")
+# ---- Scan all JSON case files and auto-generate tests ----
+file(GLOB JSON_CASES "${CMAKE_CURRENT_SOURCE_DIR}/cases/*.json")
+foreach(JSON_PATH ${JSON_CASES})
+    get_filename_component(CASE_FILE "${JSON_PATH}" NAME_WE)
+    file(READ "${JSON_PATH}" JSON_CONTENT)
+
+    # Must have xml_path field
+    string(JSON XML_PATH ERROR_VARIABLE XML_ERR GET "${JSON_CONTENT}" xml_path)
+    if(XML_ERR)
+        message(WARNING "Skipping ${CASE_FILE}: no xml_path field")
+        continue()
+    endif()
+
+    # Check for module info (treeland protocol)
+    string(JSON MOD_CLASS ERROR_VARIABLE MOD_ERR GET "${JSON_CONTENT}" module class)
+    if(MOD_ERR)
+        # Standard wayland protocol
+        add_wayland_protocol_test("${CASE_FILE}" "${XML_PATH}")
+    else()
+        string(JSON MOD_HEADER GET "${JSON_CONTENT}" module header)
+        string(JSON MOD_DIR GET "${JSON_CONTENT}" module dir)
+        add_json_protocol_test("${CASE_FILE}" "${XML_PATH}" "${MOD_HEADER}" "${MOD_CLASS}" "${MOD_DIR}")
     endif()
 endforeach()

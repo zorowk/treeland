@@ -26,5 +26,11 @@
         "events": []
       }
     }
-  ]
+  ],
+  "xml_path": "/usr/share/treeland-protocols/treeland-screensaver-v1.xml",
+  "module": {
+    "class": "ScreensaverInterfaceV1",
+    "header": "screensaverinterfacev1.h",
+    "dir": "screensaver"
+  }
 }

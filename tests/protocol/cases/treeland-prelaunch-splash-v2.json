@@ -27,5 +27,6 @@
         "events": []
       }
     }
-  ]
+  ],
+  "xml_path": "/usr/share/treeland-protocols/treeland-prelaunch-splash-v2.xml"
 }

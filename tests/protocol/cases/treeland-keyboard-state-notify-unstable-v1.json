@@ -20,5 +20,11 @@
         "events": []
       }
     }
-  ]
+  ],
+  "xml_path": "/usr/share/treeland-protocols/treeland-keyboard-state-notify-unstable-v1.xml",
+  "module": {
+    "class": "KeyboardStateWatcherV1",
+    "header": "keyboardstatenotifymanagerinterfacev1.h",
+    "dir": "keyboard-state-notify"
+  }
 }

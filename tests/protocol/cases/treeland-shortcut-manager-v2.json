@@ -20,5 +20,6 @@
         "events": []
       }
     }
-  ]
+  ],
+  "xml_path": "/usr/share/treeland-protocols/treeland-shortcut-manager-v2.xml"
 }

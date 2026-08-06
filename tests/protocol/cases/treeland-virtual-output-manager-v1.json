@@ -25,5 +25,11 @@
         "events": []
       }
     }
-  ]
+  ],
+  "xml_path": "/usr/share/treeland-protocols/treeland-virtual-output-manager-v1.xml",
+  "module": {
+    "class": "VirtualOutputInterfaceV1",
+    "header": "virtualoutputmanagerinterfacev1.h",
+    "dir": "virtual-output"
+  }
 }

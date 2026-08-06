@@ -20,5 +20,11 @@
         "events": []
       }
     }
-  ]
+  ],
+  "xml_path": "/usr/share/treeland-protocols/treeland-ddm-v1.xml",
+  "module": {
+    "class": "DDMInterfaceV1",
+    "header": "ddminterfacev1.h",
+    "dir": "ddm"
+  }
 }

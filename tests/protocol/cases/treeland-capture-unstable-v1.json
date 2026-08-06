@@ -20,5 +20,6 @@
         "events": []
       }
     }
-  ]
+  ],
+  "xml_path": "/usr/share/treeland-protocols/treeland-capture-unstable-v1.xml"
 }
