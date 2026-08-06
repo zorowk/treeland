@@ -1044,3 +1044,7 @@ add_gen_client_test(test-multi-arg multi_arg_test_xml multi_arg_generated_direct
     echoserver.c multi_arg_client_code "echo 42 -7 hello" "id=42")
 add_gen_client_test(test-fixed fixed_test_xml fixed_generated_directory fixed_client_code
     fixedechoserver.c fixed_client_code "echo 1.5" "value=384")
+add_gen_client_test(test-array array_test_xml array_generated_directory array_client_code
+    arrayechoserver.c array_client_code "echo hex:00ff" "EVENT value")
+add_gen_client_test(test-fd fd_test_xml fd_generated_directory fd_client_code
+    fdechoserver.c fd_client_code "echo fd:pipe" "EVENT value")
