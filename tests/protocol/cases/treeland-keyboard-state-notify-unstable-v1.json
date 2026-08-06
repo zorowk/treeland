@@ -2,7 +2,7 @@
   "protocol": "treeland_keyboard-state-notify_v1",
   "xml_path": "/usr/share/treeland-protocols/treeland-keyboard-state-notify-unstable-v1.xml",
   "module": {
-    "class": "KeyboardStateWatcherV1",
+    "class": "TreelandKeyboardStateNotifyManagerInterfaceV1",
     "header": "keyboardstatenotifymanagerinterfacev1.h",
     "dir": "keyboard-state-notify"
   },
