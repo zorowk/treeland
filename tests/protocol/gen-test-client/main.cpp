@@ -24,13 +24,15 @@ static std::vector<Interface> parseProtocol(const char *path) {
     char buf[65536]; FILE *f = fopen(path, "r"); if (!f) return r;
     size_t len = fread(buf, 1, sizeof(buf)-1, f); fclose(f); if (!len) return r;
     buf[len] = 0; std::string text(buf);
-    Interface curIf; bool inReq = false, inEv = false; Event cur; size_t pos = 0;
+    Interface curIf; bool inReq = false, inEv = false, inArg = false; Event cur; size_t pos = 0;
+    std::string argText;
     while (pos < text.size()) {
         size_t eol = text.find('\n', pos); if (eol == std::string::npos) eol = text.size();
         std::string line = text.substr(pos, eol - pos); pos = eol + 1;
         while (!line.empty() && (line[0]==' '||line[0]=='\t'||line[0]=='\r')) line=line.substr(1);
         if (line.empty()||line.find("<!--")!=std::string::npos) continue;
         bool sc = line.find("/>") != std::string::npos;
+        if (inArg) { argText += " " + line; if (!sc) continue; }
         if (line.find("<interface")!=std::string::npos) {
             if(!curIf.name.empty()) r.push_back(curIf); curIf=Interface{};
             curIf.name=xmlAttr(line,"name"); curIf.version=atoi(xmlAttr(line,"version").c_str());
@@ -47,9 +49,12 @@ static std::vector<Interface> parseProtocol(const char *path) {
         } else if(line.find("</request>")!=std::string::npos||line.find("</event>")!=std::string::npos) {
             if(cur.name!="__destructor"){if(inReq)curIf.requests.push_back(cur);else curIf.events.push_back(cur);}
             inReq=inEv=false;
-        } else if(line.find("<arg")!=std::string::npos&&(inReq||inEv)) {
-            Argument a; a.name=xmlAttr(line,"name");a.type=xmlAttr(line,"type");
-            a.interfaceName=xmlAttr(line,"interface"); a.allowNull=xmlAttr(line,"allow-null")=="true";
+        } else if((line.find("<arg")!=std::string::npos || inArg) && (inReq||inEv)) {
+            if (!inArg) { argText = line; }
+            if (!sc) { inArg = true; continue; }
+            inArg = false;
+            Argument a; a.name=xmlAttr(argText,"name");a.type=xmlAttr(argText,"type");
+            a.interfaceName=xmlAttr(argText,"interface"); a.allowNull=xmlAttr(argText,"allow-null")=="true";
             cur.arguments.push_back(a);
         }
     }
