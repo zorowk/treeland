@@ -53,7 +53,8 @@ void ScreensaverInterfaceV1Private::inhibit(Resource *resource, const QString &a
     }
 
     inhibits.insert(res, std::make_tuple(application_name, reason_for_inhibit));
-    Helper::instance()->updateIdleInhibitor();
+    if (auto *helper = Helper::instance())
+        helper->updateIdleInhibitor();
 }
 
 void ScreensaverInterfaceV1Private::uninhibit(Resource *resource)
@@ -66,7 +67,8 @@ void ScreensaverInterfaceV1Private::uninhibit(Resource *resource)
     }
 
     inhibits.remove(res);
-    Helper::instance()->updateIdleInhibitor();
+    if (auto *helper = Helper::instance())
+        helper->updateIdleInhibitor();
 }
 
 ScreensaverInterfaceV1::ScreensaverInterfaceV1(QObject *parent)
