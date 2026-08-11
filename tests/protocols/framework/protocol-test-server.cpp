@@ -23,10 +23,12 @@ QW_USE_NAMESPACE
 bool protocol_test_create_headless_output(WServer *server, int width, int height)
 {
     auto *backend = server->findInterface<WBackend>();
-    if (!backend)
-        return false;
+    return protocol_test_create_headless_output(backend, true, width, height);
+}
 
-    if (!backend->handle()->start())
+bool protocol_test_create_headless_output(WBackend *backend, bool startBackend, int width, int height)
+{
+    if (!backend || (startBackend && !backend->handle()->start()))
         return false;
 
     auto *multi = qw_multi_backend::from(backend->handle()->handle());
@@ -46,8 +48,11 @@ bool protocol_test_create_headless_output(WServer *server, int width, int height
     if (!output)
         return false;
 
-    wlr_output_create_global(output, server->handle()->handle());
-    return WOutput::fromHandle(qw_output::from(output)) != nullptr;
+    auto *woutput = WOutput::fromHandle(qw_output::from(output));
+    if (!woutput)
+        return false;
+    wlr_output_create_global(output, woutput->server()->handle()->handle());
+    return true;
 }
 
 bool protocol_test_enable_shm(WServer *server)
