@@ -357,6 +357,7 @@ private:
     QList<QPair<QPointer<WOutputViewport>, QRect>> m_viewportRegions;
 };
 class ToolBarModel;
+class CaptureSourceSelectorProtocolTestAccess;
 
 class CaptureSourceSelector : public SurfaceContainer
 {
@@ -415,6 +416,8 @@ protected:
     void itemChange(ItemChange change, const ItemChangeData &data) override;
 
 private:
+    friend class CaptureSourceSelectorProtocolTestAccess;
+
     QQuickItem *hoveredItem() const;
     QRectF selectionRegion() const;
     void setSelectionRegion(const QRectF &newSelectionRegion);
