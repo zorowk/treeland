@@ -20,11 +20,25 @@ struct protocol_test_xdg_toplevel {
     struct wl_shm *shm;
     struct wl_buffer *buffer;
     uint32_t configure_serial;
+    uint32_t acknowledged_configure_serial;
     int configured;
     int close_received;
 };
 
 typedef int (*protocol_test_xdg_surface_setup)(struct wl_surface *surface, void *data);
+
+/* Creates an xdg_toplevel and commits its initial empty state. It deliberately
+ * does not wait for xdg_surface.configure: protocols such as app-id-resolver
+ * may defer wrapper creation, and therefore configure, until a separate
+ * protocol response arrives. */
+int protocol_test_xdg_toplevel_create_pending(
+    struct protocol_test_connection *connection,
+    struct protocol_test_xdg_toplevel *toplevel);
+/* Waits for the configure emitted after a pending toplevel becomes eligible
+ * for mapping, acknowledges it, then attaches a 1x1 wl_shm buffer. */
+int protocol_test_xdg_toplevel_complete_map(
+    struct protocol_test_connection *connection,
+    struct protocol_test_xdg_toplevel *toplevel);
 
 /* Creates a configured xdg_toplevel and maps it by attaching a 1x1 wl_shm
  * buffer. The fixture must advertise wl_shm before the client connects. */
@@ -47,6 +61,10 @@ int protocol_test_xdg_toplevel_create_with_surface_setup(
     struct protocol_test_xdg_toplevel *toplevel,
     protocol_test_xdg_surface_setup setup,
     void *data);
+/* Acknowledge the latest configure received by the toplevel, if any. */
+int protocol_test_xdg_toplevel_ack_latest_configure(
+    struct protocol_test_connection *connection,
+    struct protocol_test_xdg_toplevel *toplevel);
 void protocol_test_xdg_toplevel_destroy(struct protocol_test_xdg_toplevel *toplevel);
 
 #ifdef __cplusplus
