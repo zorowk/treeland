@@ -6,6 +6,10 @@
 - Fixture：协议 fixture；带 headless output 和 mapped xdg-toplevel 的 desktop fixture。
 - 覆盖等级：DDE surface 元数据为 **E**；辅助 DDE 资源为 **P/I**。
 
+协议 fixture 中标记为 `*_dispatch` 的 case 只证明 request 被生产资源接受且连接未发生
+protocol error；它们计入 XML request 覆盖，不计入业务语义覆盖。每个 shell-surface 元数据
+request 则在同一 case 的 roundtrip 后读取服务端状态，分别断言其结果。
+
 ## 必须观察到的结果
 
 | 场景 | 客户端动作 | 必须观察到的结果 |
