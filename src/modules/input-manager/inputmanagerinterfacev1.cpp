@@ -54,6 +54,9 @@ void TreelandInputManagerInterfaceV1Private::bind_resource(Resource *resource)
 {
     TreelandInputManagerInterfaceV1::DeviceTypes types = q->inputDeviceListTypes();
     struct wlr_seat_client *seatClient = Helper::instance()->seat()->handle()->client_for_wl_client(resource->client());
+    if (!seatClient) {
+        return;
+    }
     struct wl_resource *clientResource;
     wl_resource_for_each(clientResource, &seatClient->resources) {
         send_capability_available(resource->handle, types.toInt(), clientResource);
@@ -173,6 +176,9 @@ void TreelandInputManagerInterfaceV1::sendCapabilityAvailable(TreelandInputManag
     for (const auto &resource : d->resourceMap()) {
         struct wlr_seat_client *seatClient =
             Helper::instance()->seat()->handle()->client_for_wl_client(resource->client());
+        if (!seatClient) {
+            continue;
+        }
         struct wl_resource *clientResource;
         wl_resource_for_each(clientResource, &seatClient->resources) {
             d->send_capability_available(resource->handle, types.toInt(), clientResource);
@@ -185,6 +191,9 @@ void TreelandInputManagerInterfaceV1::sendCapabilityUnavailable(TreelandInputMan
     for (const auto &resource : d->resourceMap()) {
         struct wlr_seat_client *seatClient =
             Helper::instance()->seat()->handle()->client_for_wl_client(resource->client());
+        if (!seatClient) {
+            continue;
+        }
         struct wl_resource *clientResource;
         wl_resource_for_each(clientResource, &seatClient->resources) {
             d->send_capability_unavailable(resource->handle, types.toInt(), clientResource);
@@ -193,6 +202,16 @@ void TreelandInputManagerInterfaceV1::sendCapabilityUnavailable(TreelandInputMan
 }
 
 TreelandInputManagerInterfaceV1::~TreelandInputManagerInterfaceV1() = default;
+
+void TreelandInputManagerInterfaceV1::setDeviceTypesProviderForTesting(DeviceTypesProvider provider)
+{
+    m_deviceTypesProviderForTesting = std::move(provider);
+}
+
+void TreelandInputManagerInterfaceV1::clearDeviceTypesProviderForTesting()
+{
+    m_deviceTypesProviderForTesting = {};
+}
 
 void TreelandInputManagerInterfaceV1::create(WServer *server)
 {
@@ -211,6 +230,10 @@ wl_global *TreelandInputManagerInterfaceV1::global() const
 
 TreelandInputManagerInterfaceV1::DeviceTypes TreelandInputManagerInterfaceV1::inputDeviceListTypes() const
 {
+    if (m_deviceTypesProviderForTesting) {
+        return m_deviceTypesProviderForTesting();
+    }
+
     TreelandInputManagerInterfaceV1::DeviceTypes types;
     const auto inputDevices = Helper::instance()->backend()->inputDeviceList();
     for (WInputDevice *device : std::as_const(inputDevices)) {
@@ -252,6 +275,10 @@ QByteArrayView TreelandInputManagerInterfaceV1::interfaceName() const
 
 void TreelandInputManagerInterfaceV1::onInputAdded(WInputDevice *input)
 {
+    if (m_deviceTypesProviderForTesting) {
+        return;
+    }
+
     TreelandInputManagerInterfaceV1::DeviceTypes types;
     const auto inputDevices = Helper::instance()->backend()->inputDeviceList();
     for (WInputDevice *device : std::as_const(inputDevices)) {
@@ -267,6 +294,9 @@ void TreelandInputManagerInterfaceV1::onInputAdded(WInputDevice *input)
         for (const auto &resource : d->resourceMap()) {
             struct wlr_seat_client *seatClient =
                 Helper::instance()->seat()->handle()->client_for_wl_client(resource->client());
+            if (!seatClient) {
+                continue;
+            }
             struct wl_resource *clientResource;
             wl_resource_for_each(clientResource, &seatClient->resources) {
                 d->send_capability_available(resource->handle, type.toInt(), clientResource);
@@ -277,6 +307,10 @@ void TreelandInputManagerInterfaceV1::onInputAdded(WInputDevice *input)
 
 void TreelandInputManagerInterfaceV1::onInputRemoved(WInputDevice *input)
 {
+    if (m_deviceTypesProviderForTesting) {
+        return;
+    }
+
     TreelandInputManagerInterfaceV1::DeviceTypes types;
     const auto inputDevices = Helper::instance()->backend()->inputDeviceList();
     for (WInputDevice *device : std::as_const(inputDevices)) {
@@ -292,6 +326,9 @@ void TreelandInputManagerInterfaceV1::onInputRemoved(WInputDevice *input)
         for (const auto &resource : d->resourceMap()) {
             struct wlr_seat_client *seatClient =
                 Helper::instance()->seat()->handle()->client_for_wl_client(resource->client());
+            if (!seatClient) {
+                continue;
+            }
             struct wl_resource *clientResource;
             wl_resource_for_each(clientResource, &seatClient->resources) {
                 d->send_capability_unavailable(resource->handle, type.toInt(), clientResource);

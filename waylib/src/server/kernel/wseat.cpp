@@ -1582,6 +1582,16 @@ void WSeat::destroy(WServer *)
 
     d->deviceList.clear();
 
+    // The group keyboard is created internally and is not kept in deviceList.
+    // Release it while the seat and QPA input-device registration are still
+    // valid; otherwise WSeatPrivate's destructor can run after that
+    // registration has already been torn down.
+    if (d->groupkeyboardDevice) {
+        detachInputDevice(d->groupkeyboardDevice);
+        d->groupkeyboardDevice->safeDeleteLater();
+        d->groupkeyboardDevice = nullptr;
+    }
+
     // Need not call the DCursor::detachInputDevice on destroy WSeat, so do
     // call the detachCursor at clear the deviceList after.
     if (d->cursor)

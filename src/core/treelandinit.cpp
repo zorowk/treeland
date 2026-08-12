@@ -19,7 +19,10 @@ namespace Treeland {
 void preInit(const InitOptions &opts)
 {
     qw_log::init();
-    if (opts.headless) qputenv("WLR_BACKENDS", "headless");
+    if (opts.headless) {
+        const auto testBackends = qgetenv("TREELAND_TEST_WLR_BACKENDS");
+        qputenv("WLR_BACKENDS", testBackends.isEmpty() ? "headless" : testBackends);
+    }
     DTK_GUI_NAMESPACE::DGuiApplicationHelper::setAttribute(
         DTK_GUI_NAMESPACE::DGuiApplicationHelper::DontSaveApplicationTheme, true);
     WServer::initializeQPA({}, opts.createPlatformTheme);
