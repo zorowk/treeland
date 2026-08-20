@@ -25,6 +25,18 @@ Wayland 线上请求与事件；本文档规定发出请求后，测试必须观
 | --- | --- | --- |
 | [测试框架架构](test-framework-architecture.md) | 基础设施 | runner、fixture、C client、生产状态桥接与 E/V 断言边界 |
 | [DesktopIntegrationFixture](desktop-integration-fixture.md) | 基础设施 | headless output、生产桌面栈和 mapped xdg 窗口 |
+| [drm (`wl_drm`)](drm.md) | P / V（GPU 条件） | wlroots native global 的完整 request/event；真实 GBM DMA-BUF 创建、采样与像素读回 |
+| [wlr-export-dmabuf-unstable-v1](wlr-export-dmabuf-unstable-v1.md) | P / V（GPU 条件） | 真实 output commit 的 pixman temporary cancel；GPU DMA-BUF 导入、readback 与红色像素断言 |
+| [wlr-foreign-toplevel-management-unstable-v1](wlr-foreign-toplevel-management-unstable-v1.md) | P / E | 标准 wlroots/waylib foreign manager 的真实 toplevel 枚举、状态控制、focus 与关闭 |
+| [wlr-gamma-control-unstable-v1](wlr-gamma-control-unstable-v1.md) | P / I（DRM 条件） | headless output 的 failed 路径；DRM runner 的真实 output LUT commit |
+| [wlr-layer-shell-unstable-v1](wlr-layer-shell-unstable-v1.md) | P / E | 标准 layer configure/ack/map、生产 layer container、exclusive focus 与 overlay 变更 |
+| [wlr-output-management-unstable-v1](wlr-output-management-unstable-v1.md) | P / E | 初始 head 快照、configuration test；apply 经 Helper 提交并验证真实 output 的坐标、transform、scale |
+| [wlr-output-power-management-unstable-v1](wlr-output-power-management-unstable-v1.md) | P / E | 初始 mode、排他 control、manager/child 生命周期；OFF/ON 经 Helper 提交并验证真实 output enabled state |
+| [wlr-screencopy-unstable-v1](wlr-screencopy-unstable-v1.md) | P / V | headless pixman 的全 output/region SHM copy，真实 output red-pixel readback |
+| [wlr-virtual-pointer-unstable-v1](wlr-virtual-pointer-unstable-v1.md) | 接入完成；P / E client 待补 | native virtual pointer 已 attach 到生产 seat，待 client 验证事件转发 |
+| [input-method-unstable-v2](input-method-unstable-v2.md) | P / E | 自包含 fake text-input/IM 的 active 状态同步、编辑结果回传；popup/grab 生命周期与单 seat 约束 |
+| [virtual-keyboard-unstable-v1](virtual-keyboard-unstable-v1.md) | P / E（间接） | 有效 XKB keymap、虚拟按键驱动生产 seat 与 shortcut；modifier/error 边界待补 |
+| [wlr-data-control-unstable-v1](wlr-data-control-unstable-v1.md) | P / E | 两 client 经真实 seat selection、offer、pipe 的剪贴板数据传输 |
 | [app-id-resolver-v1](app-id-resolver-v1.md) | I / E | resolver pidfd 应答；返回 app-id 转换真实 splash wrapper 为 xdg window |
 | [capture-unstable-v1](capture-unstable-v1.md) | E / V / P | 真实窗口选择、frame copy 与目标 buffer 像素；无 source 错误 |
 | [dde-shell-v1](dde-shell-v1.md) | E / P | mapped wrapper 的 DDE 元数据、锁屏；picker 的真实选中/PID 回传测试待执行确认 |
@@ -88,9 +100,27 @@ request stub 算作 request 覆盖；生成的 client-protocol 文件本身不�
 \* XML 共有 37 条 request；其中 manager `destroy` 的 `since=2` 高于生产 global 的 v1。
 测试保留该调用用于兼容性/错误边界，正常可发布的 v1 request 集为其余 36 条。
 
+### 公共 upstream XML
+
+公共 XML 不包含在上述 `treeland-*` 协议包的 185 条 request 统计中。其测试仍必须列明
+真实调用与硬件前提：
+
+| XML | request（已调用 / XML） | 已断言的 event 或生产结果 | 主要边界 |
+| --- | --- | --- | --- |
+| `drm.xml` / `wl_drm` v2 | 4 / 4 | `device/format/capabilities/authenticated`；两类 flink request 的 `invalid_name`；真实 GBM DMA-BUF prime buffer 经生产 renderer 采样、红色像素读回 | 没有 GPU DRM FD 或 GBM BO 时 Skip；未做最终 output backing-buffer 像素 readback |
+| [`wlr-export-dmabuf-unstable-v1.xml`](wlr-export-dmabuf-unstable-v1.md) / v1 | 3 / 3 | pixman 的真实 output commit 触发 `cancel(temporary)`；GPU opt-in runner 严格断言 `frame/object/ready`、plane FD 生命周期，并 EGL 导入/离屏 readback 红色像素 | GPU 无 exportable DMA-BUF 或 EGL import/readback 时 Skip；未覆盖 permanent/resizing cancel；native global 当前没有授权策略 |
+| [`wlr-foreign-toplevel-management-unstable-v1.xml`](wlr-foreign-toplevel-management-unstable-v1.md) / v3 | 11 / 11 | `toplevel/title/app_id/state/done/finished`；真实 wrapper 的 minimized/maximized/fullscreen/activated/focus，以及 xdg close | output enter/leave、parent、closed；指定 output fullscreen hint、多窗口与像素 |
+| [`wlr-gamma-control-unstable-v1.xml`](wlr-gamma-control-unstable-v1.md) / v1 | 4 / 4 | headless output 的唯一 `failed`；DRM opt-in runner 的 non-identity LUT 经 `Helper::setGamma()` commit，失败即 `failed` | LUT restore、exclusivity、`invalid_gamma` 与最终屏幕像素 readback |
+| [`wlr-output-management-unstable-v1.xml`](wlr-output-management-unstable-v1.md) / v4 | 14 / 15 | 初始 head/mode/done；enable/disable 的 `test`；custom-mode position/transform/scale `apply` 的成功与真实 output state 更新；manager/head/mode 生命周期 | `set_mode`、fixed-mode `preferred`；stale serial/error、多 output、真实 disable、VRR/hotplug、最终像素 |
+| [`wlr-output-power-management-unstable-v1.xml`](wlr-output-power-management-unstable-v1.md) / v1 | 4 / 4 | 初始 `mode(on)`、同 output 的排他 `failed`、manager/child 生命周期、OFF/ON 的真实 output enabled state 与 `invalid_mode` error | output destroy 的 `failed`、物理 DPMS/功耗或屏幕结果、授权策略 |
+| [`wlr-screencopy-unstable-v1.xml`](wlr-screencopy-unstable-v1.md) / v3 | 6 / 6 | 全 output/region/damage 的 `buffer/buffer_done/damage/flags/ready` 与 SHM 红色像素 readback | 错误/failed、cursor/transform/scale、DMA-BUF GPU 路径与授权策略 |
+| `input-method-unstable-v2.xml` / v1 | 11 / 11 | 同 seat 第二个 IM 的唯一 `unavailable`；真实 focused text-input 的 activate/state/done、popup rectangle、IM edit 回传，以及 virtual keyboard 驱动的 keyboard-grab event | deactivate/focus 转移和连续 state update 的最新快照 |
+| [`virtual-keyboard-unstable-v1.xml`](virtual-keyboard-unstable-v1.md) / v1 | 5 / 5 | 有效 XKB keymap；F1 被生产 shortcut capture 捕获，F2 激活生产 shortcut；modifier 进入真实 seat；`key`/`modifiers` 的 `no_keymap` error | `unauthorized` 无生产授权策略可触发；更多 modifier/layout 组合 |
+| [`wlr-data-control-unstable-v1.xml`](wlr-data-control-unstable-v1.md) / v2 | 8 / 10 | selection/primary selection、offer/receive/send 的 pipe payload、replacement `cancelled` 与 manager/child 生命周期 | source/offer 显式 destroy、`used_source`、`invalid_offer`、seat-destroy `finished`；当前无 `unauthorized` 授权分支 |
+
 ### 未纳入上述覆盖率的 XML
 
-以下 3 个 XML 仍由协议包提供，但当前没有对应的已注册生产测试 target，故不混入 185 的
+以下 4 个 XML 仍由协议包提供，但当前没有对应的已注册生产测试 target，故不混入 185 的
 分母，也不能被视为“已覆盖”：
 
 | XML | request / event | 当前状态与缺口 |
@@ -98,6 +128,7 @@ request stub 算作 request 覆盖；生成的 client-protocol 文件本身不�
 | `treeland-prelaunch-splash-v1` | 2 / 0 | 已由 v2 取代；未验证 v1 compatibility global 或迁移策略 |
 | `treeland-shortcut-manager-v1` | 3 / 1 | 已由 v2 取代；未验证 v1 compatibility global、`shortcut` event |
 | `treeland-remote-subsurface-unstable-v1` | 8 / 3 | 无测试目录；export token、remote subsurface 创建、位置/堆叠、错误 event 与真实 scene 结果均未覆盖 |
+| `server-decoration.xml` | 3 / 2 | **已废弃的 KWin legacy server-decoration 协议**；wlroots 有 native 实现，但 waylib 没有 wrapper，Treeland 也未注册 `org_kde_kwin_server_decoration_manager` global。当前以已接入的 `zxdg-decoration` 替代；不计划新增覆盖，除非恢复 legacy compatibility 支持 |
 
 ### 如何解读业务覆盖
 

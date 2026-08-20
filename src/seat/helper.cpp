@@ -75,6 +75,7 @@
 #include <WSurfaceItem>
 #include <WXdgOutput>
 #include <wayland-util.h>
+#include <wlr/types/wlr_export_dmabuf_v1.h>
 #include <wcursorshapemanagerv1.h>
 #include <wextimagecapturesourcev1impl.h>
 #include <wlayersurface.h>
