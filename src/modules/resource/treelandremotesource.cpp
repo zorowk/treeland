@@ -27,7 +27,7 @@ TreelandRemoteSource::TreelandRemoteSource(QObject *parent)
     : WindowTreeRemoteSource(parent)
 {
     auto *host = new QRemoteObjectHost(this);
-    QRemoteObjectHost::setLocalServerOptions(QLocalServer::UserAccessOption);
+    QRemoteObjectHost::setLocalServerOptions(QLocalServer::GroupAccessOption);
     host->setHostUrl(QUrl(QStringLiteral("local:org.deepin.dde.treeland.debug")));
     host->enableRemoting(this, QStringLiteral("WindowTree"));
 

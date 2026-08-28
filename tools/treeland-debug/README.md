@@ -19,10 +19,41 @@ sudo cmake --install build --component treeland-debug
 The executable is installed to `/usr/local/bin/treeland-debug` by default.
 Set `CMAKE_INSTALL_PREFIX` during configuration to use another prefix.
 
-## DDE mode
+## DDE mode and access control
 
-Treeland runs as the `dde` user in global mode. Its Qt Remote Object server uses
-owner-only local socket access, so run this client as `dde`.
+Treeland runs as the `dde` user in global mode. Its `WindowTree` Remote Object
+uses group-only local socket access, with `treeland-debug` as the service's
+primary group. Members of that group can run this client directly; `sudo -u dde`
+is not required.
+
+Create the group once, then add only authorised users. Replace `uos` with the
+account that will run the client:
+
+```bash
+sudo groupadd --system treeland-debug
+sudo usermod -aG treeland-debug uos
+```
+
+After installing a Treeland build that includes the updated systemd unit, reload
+systemd and restart Treeland:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart treeland.service
+```
+
+Restarting Treeland interrupts the active graphical session. The client user
+must also sign out and back in before its new group membership is available.
+
+Verify the membership before using the client:
+
+```bash
+id -nG uos
+```
+
+The `treeland-debug` group grants access to the complete `WindowTree` Remote
+Object, including window titles, application IDs, geometry, workspaces, and
+cursor position. Do not add untrusted users to it.
 
 Before starting Treeland, enable the `debugSource` DConfig option as the `dde`
 user; otherwise the `WindowTree` Remote Object source is absent:
@@ -42,7 +73,7 @@ Restart Treeland after changing this option.
 Print the complete layout tree:
 
 ```bash
-sudo -u dde -- /usr/local/bin/treeland-debug --tree
+/usr/local/bin/treeland-debug --tree
 ```
 
 `--tree` is the default when neither `--tree` nor `--cursor` is specified.
@@ -50,7 +81,7 @@ sudo -u dde -- /usr/local/bin/treeland-debug --tree
 Print the cursor position:
 
 ```bash
-sudo -u dde -- /usr/local/bin/treeland-debug --cursor
+/usr/local/bin/treeland-debug --cursor
 ```
 
 Connection options:

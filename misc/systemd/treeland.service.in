@@ -9,6 +9,7 @@ After=dde-seatd.service
 
 [Service]
 User=dde
+Group=treeland-debug
 RuntimeDirectory=treeland
 RuntimeDirectoryMode=0700
 Environment="XDG_RUNTIME_DIR=%t/treeland"
