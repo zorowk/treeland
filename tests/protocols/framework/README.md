@@ -81,8 +81,9 @@ sequenceDiagram
 
 当前 CI 环境未提供可用的 system D-Bus、`dde-dconfig-daemon` 与
 `org.freedesktop.Accounts`，框架暂时以 `test-dconfig-service.*` 创建隔离 D-Bus 和 DConfig
-daemon，并以 `test-accounts-service.*` 注册最小 AccountsService/user 对象。这两者仅用于让
-完整 Treeland fixture 启动，不是被测协议的 mock，也不应成为长期测试基础设施。
+daemon，并默认以 `test-accounts-service.*` 注册最小 AccountsService/user 对象。空用户和
+AccountsService 不可用的启动回归 target 分别覆盖这两个替代条件。这些 helper 仅用于让完整
+Treeland fixture 启动，不是被测协议的 mock，也不应成为长期测试基础设施。
 
 CI 能提供真实 D-Bus、DConfig 与 AccountsService 后，应删除这两个 helper，并让入口直接连接
 CI 提供的服务。

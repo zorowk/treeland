@@ -11,9 +11,9 @@
 #include "treelandconfig.hpp"
 #include "treelanduserconfig.hpp"
 
-#include <QGuiApplication>
 #include <QAbstractItemModel>
 #include <QEventLoop>
+#include <QGuiApplication>
 #include <QMetaObject>
 #include <QSemaphore>
 #include <QtTest>
@@ -21,6 +21,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <optional>
 #include <pthread.h>
 
 void protocol_test_setup(Helper *helper);
@@ -169,10 +170,13 @@ int main(int argc, char *argv[])
         dconfigService.stop();
         return 1;
     }
-    TestAccountsService accountsService;
-    if (!accountsService.registerObjects()) {
-        dconfigService.stop();
-        return 1;
+    std::optional<TestAccountsService> accountsService;
+    if (!qEnvironmentVariableIsSet("TREELAND_PROTOCOL_TEST_NO_ACCOUNTS_SERVICE")) {
+        accountsService.emplace();
+        if (!accountsService->registerObjects()) {
+            dconfigService.stop();
+            return 1;
+        }
     }
 
     Treeland::Treeland treeland;

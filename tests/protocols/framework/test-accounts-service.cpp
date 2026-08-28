@@ -19,12 +19,23 @@ class TestAccountsManager : public QObject
     Q_PROPERTY(QStringList UserList READ userList)
 
 public:
-    QStringList userList() const { return { QString::fromLatin1(accountsUserPath) }; }
+    explicit TestAccountsManager(bool emptyUserList)
+        : m_emptyUserList(emptyUserList)
+    {
+    }
+
+    QStringList userList() const
+    {
+        return m_emptyUserList ? QStringList{}
+                               : QStringList{ QString::fromLatin1(accountsUserPath) };
+    }
 
 public slots:
     QList<QDBusObjectPath> ListCachedUsers() const
     {
-        return { QDBusObjectPath(QString::fromLatin1(accountsUserPath)) };
+        return m_emptyUserList
+            ? QList<QDBusObjectPath>{}
+            : QList<QDBusObjectPath>{ QDBusObjectPath(QString::fromLatin1(accountsUserPath)) };
     }
 
     QDBusObjectPath FindUserById(qint64) const
@@ -35,6 +46,8 @@ public slots:
     {
         return QDBusObjectPath(QString::fromLatin1(accountsUserPath));
     }
+private:
+    bool m_emptyUserList = false;
 };
 
 class TestAccountsUser : public QObject
@@ -69,12 +82,18 @@ public:
 class TestAccountsService::Private
 {
 public:
+    explicit Private(bool emptyUserList)
+        : manager(emptyUserList)
+    {
+    }
+
     TestAccountsManager manager;
     TestAccountsUser user;
 };
 
 TestAccountsService::TestAccountsService()
-    : d(std::make_unique<Private>())
+    : d(std::make_unique<Private>(
+          qEnvironmentVariableIsSet("TREELAND_PROTOCOL_TEST_EMPTY_ACCOUNTS")))
 {
 }
 
