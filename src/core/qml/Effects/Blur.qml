@@ -14,16 +14,19 @@ RenderBufferBlitter {
     property real radius: 0
     property rect frameRect: Qt.rect(0, 0, width, height)
     property bool radiusEnabled: radius > 0
-    property int blurMax: WaylandServer.config.blurStrength
-    property bool blurEnabled: blurMax > 0 && blurAmount > 0
-    property real blurAmount: WaylandServer.config.blurAmount
-    property real multiplier: WaylandServer.config.blurMultiplier
+    property QtObject effectConfig: WaylandServer.config
+    readonly property bool backgroundAllowed: effectConfig?.backgroundEffectEnabled ?? true
+    property int blurMax: effectConfig?.blurStrength ?? 0
+    property bool blurEnabled: backgroundAllowed && (effectConfig?.blurStrength ?? 0) > 0
+        && blurMax > 0 && blurAmount > 0
+    property real blurAmount: effectConfig?.blurAmount ?? 0
+    property real multiplier: effectConfig?.blurMultiplier ?? 0
     property real brightness: 0.0
     property real contrast: 0.0
-    property real saturation: WaylandServer.config.glassSaturation
-    property real glassSpecular: WaylandServer.config.glassSpecular
+    property real saturation: effectConfig?.glassSaturation ?? 0
+    property real glassSpecular: effectConfig?.glassSpecular ?? 0
     property real glassTint: 0.0
-    property bool glassEnabled: WaylandServer.config.glassEnabled
+    property bool glassEnabled: effectConfig?.glassEnabled ?? false
     property Item effectContent: contentLoader
     property bool contentOffscreen: false
     property bool effectEnabled: true
@@ -37,6 +40,7 @@ RenderBufferBlitter {
     Loader {
         id: contentLoader
         anchors.fill: parent
+        active: blitter.backgroundAllowed
         sourceComponent: blitter.glassEnabled ? glassComponent : blurComponent
         visible: blitter.effectEnabled && !blitter.contentOffscreen
     }
@@ -52,8 +56,8 @@ RenderBufferBlitter {
             blurMax: blitter.blurMax
             blurAmount: blitter.blurAmount
             blurMultiplier: blitter.multiplier
-            bezelWidth: WaylandServer.config.glassBezel
-            thickness: WaylandServer.config.glassThickness
+            bezelWidth: blitter.effectConfig.glassBezel
+            thickness: blitter.effectConfig.glassThickness
             ior: 1.33
             specular: blitter.glassSpecular
             tint: blitter.glassTint
@@ -63,7 +67,7 @@ RenderBufferBlitter {
             contentEdgePull: 0.0
             contentRampEnd: 0.0
             refractionMaxTan: 3.3
-            profilePower: WaylandServer.config.glassProfilePower
+            profilePower: blitter.effectConfig.glassProfilePower
             innerShadow: 0.0
         }
     }

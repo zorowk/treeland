@@ -38,7 +38,7 @@ Wayland 线上请求与事件；本文档规定发出请求后，测试必须观
 | [output-manager-v2](treeland-output-manager-v2/README.md) | I / P | uuid 寻址的 primary-output 与 picture-control 创建/提交/失效链路 |
 | [region-watch-unstable-v1](treeland-region-watch-unstable-v1/README.md) | E / P | 输出边缘区域的全局坐标注册；真实 toplevel 映射/关闭驱动的 enter/leave；输出重绑、output_removed 与惰性语义 |
 | [appearance-unstable-v1](treeland-appearance-unstable-v1/README.md) | I / P | 初始 `color_scheme` 与 manager setter 触发的 client 广播 | 其余外观字段、无效值和 DConfig 配置替换 |
-| [decoration-unstable-v1](treeland-decoration-unstable-v1/README.md) | E | mapped toplevel 的 `set_corner_radius` 回读真实 `SurfaceWrapper::radius()` | shadow、border、titlebar 和协议错误路径 |
+| [decoration-unstable-v1](treeland-decoration-unstable-v1/README.md) | E | 圆角回读、DConfig 优先控制圆角/阴影/描边、最大化时 SSD 标题栏 configure | 阴影和描边参数渲染、协议错误路径 |
 | [remote-subsurface-unstable-v1](treeland-remote-subsurface-unstable-v1/README.md) | E / P | token 导出、真实 Remote `WSubsurface` 的父子关系、位置与层级、输入上下文查找父窗口、`parent_rejected` / `invalid_sibling` | 跨 client、循环 parent、映射生命周期与 sibling 间排序 |
 | [prelaunch-splash-v2](treeland-prelaunch-splash-v2/README.md) | I / E | splash 请求/关闭信号；生产 splash wrapper 创建、加入 workspace 与销毁 |
 | [prelaunch splash 桌面集成](treeland-prelaunch-splash-desktop-v2/README.md) | E / V | splash wrapper 创建/销毁；AM 图标在 splash item 与客户端 `wl_buffer` 都销毁后仍由 wrapper 持有；dock preview 标题行图标 item 的 buffer 指针、尺寸与纹理像素；无图标窗口与悬停切换不产生 `WBufferItem` / QML 警告 |
@@ -127,7 +127,7 @@ request stub 算作 request 覆盖；生成的 client-protocol 文件本身不�
 | active-notify-unstable-v1 | 2 / 2 | notifier 创建/重建；无真实输入不伪造事件 | 真实输入驱动的 activity/drag 事件（uinput）、null seat 错误、多 notifier/seat、与 v1 并行双发 |
 | appearance-unstable-v1 + appearance-manager-unstable-v1 | 3 / 13 | bind 初始 `color_scheme`；manager `set_color_scheme` 广播 Dark | 其余外观字段、无效值、DConfig 配置替换 |
 | ddm-v1 | 0 / 7 | 无未请求 VT event；生产连接生命周期 | 所有会话/渲染控制 request 与 `switch_to_vt/acquire_vt` 的实际系统流程 |
-| decoration-unstable-v1 | 4 / 7 | `set_corner_radius` 后 mapped `SurfaceWrapper::radius()` == 12 | shadow、border、titlebar、协议错误与 SSD 协商 |
+| decoration-unstable-v1 | 7 / 7 | 圆角、阴影和描边请求受 DConfig 开关控制；SSD 标题栏影响最大化 configure | 阴影和描边参数渲染、协议错误路径 |
 | foreign-toplevel-manager-v3 | 16 / 16 | `toplevel/identifier/closed`；真实最小化、最大化、全屏、焦点与 icon rectangle；最小化与布局状态正交（含取消布局后不卡在最小化）；布局状态请求在几何动画进行中的重定向与取消（最大化中还原、取消全屏后最大化） | `pid/title/app_id/output_enter/output_leave/state/done/parent` payload；指定 `wl_output` 的 fullscreen hint、preview 像素；`Tiling` 组合 |
 | input-manager-unstable-v1 | 1 / 22 | 默认测试仅证明空设备 manager 可绑定；uinput target 断言 Keyboard capability 热插拔 | settings/apply、真实 mouse/touchpad 配置生效、无设备 failed；uinput E 层需显式启用并实际执行 |
 | keyboard-state-notify-unstable-v1 | 6 / 6 | watcher 配置、`apply` 的空键盘/空 modifier 边界 | `current_state/state_changed`、多 watcher、初始 locked、seat 销毁、重复 apply 与物理键盘对照 |

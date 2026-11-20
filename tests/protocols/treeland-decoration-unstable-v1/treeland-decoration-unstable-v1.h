@@ -12,6 +12,10 @@ extern "C" {
 struct decoration_server_state {
     int valid;
     double radius;
+    int shadow_visible;
+    int border_visible;
+    double shadow_radius;
+    double border_width;
     // Maximized frame rect and the SSD title bar height currently taken out of it.
     int32_t maximized_width;
     int32_t maximized_height;
@@ -19,6 +23,7 @@ struct decoration_server_state {
 };
 
 void decoration_read_server_state(void *data);
+void decoration_set_effects_enabled(void *data);
 
 #ifdef __cplusplus
 }

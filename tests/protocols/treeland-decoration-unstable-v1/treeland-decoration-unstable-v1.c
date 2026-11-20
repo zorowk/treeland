@@ -58,6 +58,20 @@ static int read_server_state(struct decoration_server_state *state)
     return 0;
 }
 
+static int expect_effects(double radius, int visible, const char *step)
+{
+    struct decoration_server_state state = { 0 };
+    if (read_server_state(&state))
+        return 1;
+    if (state.radius == radius && state.shadow_visible == visible && state.border_visible == visible
+        && (!visible || (state.shadow_radius == 24 && state.border_width == 2)))
+        return 0;
+    fprintf(stderr, "decoration: %s: radius=%g shadow=%d (%g px) border=%d (%g px)\n",
+            step, state.radius, state.shadow_visible, state.shadow_radius,
+            state.border_visible, state.border_width);
+    return 1;
+}
+
 // A maximized window keeps its frame on the rect: only the height gives up the title bar.
 static int expect_maximized_configure(struct client_connection *connection,
                                       struct xdg_toplevel_client *toplevel,
@@ -138,6 +152,23 @@ int protocol_test_run(const char *socket_name)
         fprintf(stderr, "decoration: corner radius was not applied (radius=%g)\n", state.radius);
         return 1;
     }
+
+    int effects_enabled = 0;
+    if (!invoke_on_server_thread(decoration_set_effects_enabled, &effects_enabled)
+        || expect_effects(0, 0, "DConfig disabled decorations"))
+        return 1;
+
+    treeland_decoration_context_v1_set_corner_radius(context, 16);
+    treeland_decoration_context_v1_set_shadow(context, 24, 0, 8, 0, 0, 0, 128);
+    treeland_decoration_context_v1_set_border(context, 2, 0, 0, 0, 128);
+    if (wl_display_roundtrip(connection.display) < 0
+        || expect_effects(0, 0, "client requests while DConfig disabled decorations"))
+        return 1;
+
+    effects_enabled = 1;
+    if (!invoke_on_server_thread(decoration_set_effects_enabled, &effects_enabled)
+        || expect_effects(16, 1, "DConfig re-enabled decorations"))
+        return 1;
 
     // 0 means square corners, not "fall back to the compositor default radius".
     treeland_decoration_context_v1_set_corner_radius(context, 0);

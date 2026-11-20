@@ -211,7 +211,6 @@ Item {
                 anchors.fill: parent
                 visible: root.enableBlur
                 radius: root.radius
-                blurEnabled: root.enableBlur
             }
 
             Rectangle {
