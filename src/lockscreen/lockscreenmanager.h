@@ -52,7 +52,6 @@ private Q_SLOTS:
     void onLockScreenShutdown();
     void onSessionNew(const QString &sessionId, const QDBusObjectPath &objectPath);
     void onSessionLock();
-    void onSessionUnlock();
 
 private:
     void onExtSessionLock(WSessionLock *lock);

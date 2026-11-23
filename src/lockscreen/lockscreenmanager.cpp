@@ -73,19 +73,11 @@ void LockScreenManager::onSessionNew(const QString &sessionId, const QDBusObject
     const auto path = sessionPath.path();
     qCDebug(lcTlCore) << "Session new, sessionId:" << sessionId << ", sessionPath:" << path;
     QDBusConnection::systemBus().connect("org.freedesktop.login1", path, "org.freedesktop.login1.Session", "Lock", this, SLOT(onSessionLock()));
-    QDBusConnection::systemBus().connect("org.freedesktop.login1", path, "org.freedesktop.login1.Session", "Unlock", this, SLOT(onSessionUnlock()));
 }
 
 void LockScreenManager::onSessionLock()
 {
     showLockScreen();
-}
-
-void LockScreenManager::onSessionUnlock()
-{
-    if (m_lockScreen) {
-        m_lockScreen->unlock();
-    }
 }
 
 void LockScreenManager::onExtSessionLock(WSessionLock *lock)

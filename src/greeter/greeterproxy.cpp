@@ -78,6 +78,25 @@ static bool localValidation(const QString &user, const QString &password)
     return retval == PAM_SUCCESS;
 }
 
+static bool isUserDesktopSession(const QString &id)
+{
+    const auto encodedId = id.toLocal8Bit();
+    char *type = nullptr, *sessionClass = nullptr;
+    const auto cleanup = qScopeGuard([&] {
+        free(type);
+        free(sessionClass);
+    });
+    // An account's TTY/SSH or greeter session must not control its desktop lock.
+    if (sd_session_get_type(encodedId.constData(), &type) < 0
+        || sd_session_get_class(encodedId.constData(), &sessionClass) < 0
+        || sd_session_is_remote(encodedId.constData()) != 0
+        || QString::fromLocal8Bit(type) != QStringLiteral("wayland")
+        || (QString::fromLocal8Bit(sessionClass) != QStringLiteral("user")
+            && QString::fromLocal8Bit(sessionClass) != QStringLiteral("user-early")))
+        return false;
+    return true;
+}
+
 static inline UserModel *userModel()
 {
     return WaylandServer::instance()->userModel();
@@ -349,7 +368,7 @@ void GreeterProxy::onSessionNew(const QString &id, [[maybe_unused]] const QDBusO
         return;
     }
 
-    if (strncmp(service, "ddm", 3) == 0) {
+    if (strncmp(service, "ddm", 3) == 0 && isUserDesktopSession(id)) {
         QString user = QString::fromLocal8Bit(username);
         qCInfo(lcTlGreeter) << "New session added: id=" << id << ", user=" << user;
         userModel()->updateUserLoginState(user, true);
@@ -669,6 +688,8 @@ void GreeterProxy::readyRead()
 
             qCInfo(lcTlGreeter) << "activate successfully: " << user << ", XDG_SESSION_ID: " << sessionId;
             syncHasActiveSession();
+
+            setLock(false);
 
             // DDM drives the direct login (autologin / unlock), so the greeter
             // must hide unconditionally. onSessionNew's setLock(false) may never
