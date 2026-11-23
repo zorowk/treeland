@@ -471,6 +471,8 @@ std::shared_ptr<Session> SessionManager::ensureSession(const QString &id, QStrin
 #endif
 
     session->m_socket->setEnabled(false, globalSession() ? globalSession()->socket() : nullptr);
+    // Forward the Session that owns the logind subscription.
+    connect(session.get(), &Session::logindLockRequested, this, &SessionManager::logindLockRequested);
     // Add session to list
     m_sessions.append(session);
 
